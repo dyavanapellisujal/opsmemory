@@ -1,0 +1,16 @@
+.git
+.venv
+__pycache__
+*.py[cod]
+.mypy_cache
+.ruff_cache
+.pytest_cache
+.coverage
+htmlcov
+tests
+docs
+deploy
+data
+.env
+.env.*
+OpsMemory_PRD.md

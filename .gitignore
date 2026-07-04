@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+
+# Tooling caches
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment
+.env
+.env.*
+!.env.example
+values.local.yaml
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# Local data
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Cognee local storage
+.cognee_system/
+.artifacts/
+
+# Generated visualizations (keep them if moved to hackathon_docs, but ignore root ones)
+/*.html
+
+# Temporary hackathon scratch scripts
+create_test_data.py
+generate_viz.py
+query_cognee.py
+query_memory.py
+test_cognee.py
+visualize_graph.py
+

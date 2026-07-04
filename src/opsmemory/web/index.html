@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Synapse — Operational Memory</title>
+<style>
+  :root {
+    --bg: #0b0d12; --bg-elev: #12151c; --panel: #151922; --panel-2: #1b2029;
+    --border: #262c38; --border-soft: #1f242e;
+    --text: #e7ecf3; --text-dim: #97a1b2; --text-faint: #6b7686;
+    --accent: #6d8bff; --accent-soft: #2a3358; --accent-text: #aebdff;
+    --green: #46c98b; --amber: #f0b34a; --red: #f2657a; --purple: #b98bff;
+    --radius: 12px; --radius-sm: 8px;
+    --sev1: #f2657a; --sev2: #f0934a; --sev3: #f0c94a; --sev4: #7c8698;
+    --shadow: 0 6px 24px rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: radial-gradient(1200px 600px at 80% -10%, #171c2b 0%, var(--bg) 55%) fixed;
+    color: var(--text);
+    font: 14px/1.55 -apple-system, "Segoe UI", Inter, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+  input, textarea, select {
+    font: inherit; color: var(--text); background: var(--bg-elev);
+    border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 9px 12px; width: 100%;
+  }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 90px; font-family: inherit; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px;
+    border-radius: var(--radius-sm); background: var(--panel-2); border: 1px solid var(--border);
+    color: var(--text); font-weight: 500; transition: .12s; white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .btn.primary { background: var(--accent); color: #0b0d12; border-color: var(--accent); font-weight: 600; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.ghost { background: transparent; }
+  .btn.sm { padding: 5px 10px; font-size: 12.5px; }
+  .muted { color: var(--text-dim); }
+  .faint { color: var(--text-faint); }
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px;
+    font-size: 11.5px; font-weight: 600; background: var(--panel-2); border: 1px solid var(--border);
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); }
+  .sev-sev1 { color: var(--sev1); } .sev-sev1 .dot { background: var(--sev1); }
+  .sev-sev2 { color: #f0934a; } .sev-sev2 .dot { background: #f0934a; }
+  .sev-sev3 { color: var(--sev3); } .sev-sev3 .dot { background: var(--sev3); }
+  .sev-sev4 { color: var(--text-dim); } .sev-sev4 .dot { background: var(--text-dim); }
+  .st-open { color: var(--amber); } .st-open .dot { background: var(--amber); }
+  .st-mitigated { color: var(--accent-text); } .st-mitigated .dot { background: var(--accent); }
+  .st-resolved { color: var(--green); } .st-resolved .dot { background: var(--green); }
+
+  /* Layout */
+  #app { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 236px; flex-shrink: 0; background: rgba(16,19,26,.7); backdrop-filter: blur(8px);
+    border-right: 1px solid var(--border-soft); padding: 18px 14px; position: sticky; top: 0; height: 100vh;
+    display: flex; flex-direction: column;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px 18px; font-weight: 700; font-size: 16px; }
+  .brand .logo {
+    width: 26px; height: 26px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--purple)); display: grid; place-items: center;
+    color: #0b0d12; font-weight: 800; font-size: 15px;
+  }
+  .nav { display: flex; flex-direction: column; gap: 2px; }
+  .nav a {
+    display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: var(--radius-sm);
+    color: var(--text-dim); font-weight: 500;
+  }
+  .nav a:hover { background: var(--panel); color: var(--text); }
+  .nav a.active { background: var(--accent-soft); color: var(--accent-text); }
+  .nav .ico { width: 17px; text-align: center; opacity: .9; }
+  .sidebar .spacer { flex: 1; }
+  .userbox { border-top: 1px solid var(--border-soft); padding-top: 12px; display: flex; align-items: center; gap: 10px; }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-text);
+    display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .topbar { display: flex; align-items: center; gap: 14px; padding: 14px 26px; border-bottom: 1px solid var(--border-soft); position: sticky; top: 0; background: rgba(11,13,18,.75); backdrop-filter: blur(8px); z-index: 5; }
+  .search { flex: 1; max-width: 560px; position: relative; }
+  .search input { padding-left: 34px; background: var(--panel); }
+  .search .ico { position: absolute; left: 11px; top: 9px; color: var(--text-faint); }
+  .content { padding: 26px; max-width: 1180px; width: 100%; margin: 0 auto; }
+  h1.page { font-size: 21px; font-weight: 700; letter-spacing: -.01em; }
+  .sub { color: var(--text-dim); margin-top: 3px; }
+  .row { display: flex; align-items: center; gap: 12px; }
+  .between { justify-content: space-between; }
+  .grid { display: grid; gap: 14px; }
+  .cards { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+  .stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 22px; }
+  .card {
+    background: linear-gradient(180deg, var(--panel) 0%, var(--bg-elev) 100%);
+    border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 16px; transition: .14s;
+  }
+  a.card:hover, .card.hover:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: var(--shadow); }
+  .stat .n { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+  .stat .l { color: var(--text-dim); font-size: 12.5px; margin-top: 2px; }
+  .stat .ico { font-size: 16px; float: right; opacity: .5; }
+  .inc-title { font-weight: 650; font-size: 15px; margin: 8px 0 4px; letter-spacing: -.01em; }
+  .metaline { display: flex; flex-wrap: wrap; gap: 7px 14px; color: var(--text-faint); font-size: 12px; margin-top: 12px; }
+  .metaline b { color: var(--text-dim); font-weight: 600; }
+  .section-title { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-faint); margin: 26px 0 10px; font-weight: 700; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border-soft); margin: 18px 0 22px; }
+  .tabs button { padding: 10px 15px; color: var(--text-dim); font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tabs button.active { color: var(--text); border-bottom-color: var(--accent); }
+  .tabs .count { font-size: 11px; color: var(--text-faint); margin-left: 6px; }
+
+  /* Chat */
+  .chat-log { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
+  .msg { padding: 12px 15px; border-radius: var(--radius); border: 1px solid var(--border-soft); white-space: pre-wrap; max-width: 82%; }
+  .msg.user { background: var(--accent-soft); border-color: var(--accent-soft); align-self: flex-end; color: var(--accent-text); }
+  .msg.bot { background: var(--panel); align-self: flex-start; }
+  .msg .meta { margin-top: 9px; font-size: 11.5px; color: var(--text-faint); display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text-dim); }
+
+  /* Doc sections */
+  .doc-sec { border: 1px solid var(--border-soft); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; }
+  .doc-sec h3 { font-size: 13.5px; padding: 12px 15px; background: var(--panel); border-bottom: 1px solid var(--border-soft); display: flex; justify-content: space-between; align-items: center; }
+  .doc-sec ul { list-style: none; padding: 6px 15px 12px; }
+  .doc-sec li { padding: 5px 0; border-bottom: 1px dashed var(--border-soft); }
+  .doc-sec li:last-child { border-bottom: none; }
+  .doc-sec .md-block { padding: 4px 15px 14px; }
+  .doc-sec .md-block + .md-block { border-top: 1px solid var(--border-soft); padding-top: 14px; }
+  /* Rendered markdown */
+  .md { color: var(--text); line-height: 1.62; font-size: 13.5px; }
+  .md > :first-child { margin-top: 0; }
+  .md h1, .md h2, .md h3, .md h4 { line-height: 1.3; margin: 16px 0 8px; font-weight: 650; letter-spacing: -.01em; }
+  .md h1 { font-size: 17px; } .md h2 { font-size: 15px; } .md h3 { font-size: 13.5px; color: var(--text-dim); text-transform: none; }
+  .md h4 { font-size: 12.5px; color: var(--text-dim); }
+  .md p { margin: 8px 0; }
+  .md ul { margin: 8px 0; padding-left: 20px; } .md li { padding: 2px 0; }
+  .md strong { color: #fff; font-weight: 650; }
+  .md code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; }
+  .md pre.code { background: #0c0f15; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin: 10px 0; overflow-x: auto; }
+  .md pre.code code { background: none; border: none; padding: 0; font-size: 12.5px; line-height: 1.55; color: #cbd5e6; white-space: pre; }
+  .md pre.code .lang { display: block; color: var(--text-faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+  .sources { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 15px 12px; }
+  .src { font-size: 11px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-dim); display: inline-flex; gap: 5px; }
+  .src.meeting { border-color: #4a3a6e; color: var(--purple); }
+  .src.document { border-color: #2f4a6e; color: var(--accent-text); }
+  .src.experience { border-color: #2f6e50; color: var(--green); }
+  .src.manual { border-color: var(--border); }
+
+  /* Suggestion panel */
+  .suggest { background: linear-gradient(135deg, rgba(109,139,255,.12), rgba(185,139,255,.08)); border: 1px solid var(--accent-soft); border-radius: var(--radius); padding: 15px; margin-bottom: 14px; }
+  .suggest .pct { font-weight: 800; color: var(--accent-text); }
+
+  /* Modal */
+  .modal-bg { position: fixed; inset: 0; background: rgba(4,6,10,.6); backdrop-filter: blur(3px); display: grid; place-items: center; z-index: 40; }
+  .modal { background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius); width: min(520px, 92vw); padding: 22px; box-shadow: var(--shadow); }
+  .modal h2 { font-size: 17px; margin-bottom: 4px; }
+  .field { margin-top: 14px; }
+  .field label { display: block; font-size: 12.5px; color: var(--text-dim); margin-bottom: 6px; font-weight: 600; }
+  .modal .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+  /* Login */
+  .login-wrap { display: grid; place-items: center; min-height: 100vh; width: 100%; }
+  .login { width: min(380px, 90vw); }
+  .login .brand { justify-content: center; font-size: 20px; }
+  .login .card { padding: 26px; }
+
+  .empty { text-align: center; padding: 50px 20px; color: var(--text-faint); }
+  .spin { display: inline-block; width: 15px; height: 15px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: sp .7s linear infinite; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  .toast { position: fixed; bottom: 22px; right: 22px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 16px; box-shadow: var(--shadow); z-index: 60; max-width: 340px; }
+  .toast.err { border-color: var(--red); }
+  .connector-card { display: flex; align-items: flex-start; gap: 12px; }
+  .connector-card .cico { width: 34px; height: 34px; border-radius: 9px; background: var(--panel-2); display: grid; place-items: center; font-size: 17px; flex-shrink: 0; }
+  .connector-card.soon { opacity: .5; }
+</style>
+</head>
+<body>
+<div id="app"><div class="login-wrap"><span class="spin"></span></div></div>
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+
+<script>
+const API = "";
+const state = { token: localStorage.getItem("synapse_token") || "", user: null, authDisabled: false };
+
+// ---- API helper ----
+async function api(path, { method = "GET", body } = {}) {
+  const headers = { "Content-Type": "application/json" };
+  if (state.token) headers.Authorization = "Bearer " + state.token;
+  const res = await fetch(API + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  if (res.status === 401) { state.token = ""; localStorage.removeItem("synapse_token"); renderLogin(); throw new Error("unauthorized"); }
+  if (res.status === 204) return null;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
+  return data;
+}
+function toast(msg, isErr) {
+  const t = document.createElement("div");
+  t.className = "toast" + (isErr ? " err" : "");
+  t.textContent = msg;
+  document.getElementById("toast-root").appendChild(t);
+  setTimeout(() => t.remove(), 3200);
+}
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const sevPill = (s) => `<span class="pill sev-${s}"><span class="dot"></span>${s.toUpperCase()}</span>`;
+const stPill = (s) => `<span class="pill st-${s}"><span class="dot"></span>${s}</span>`;
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "—";
+
+// ---- Auth ----
+async function boot() {
+  try {
+    const me = await api("/api/v1/auth/me");
+    state.user = me;
+    renderApp();
+  } catch (e) {
+    if (String(e.message).includes("disabled")) { state.authDisabled = true; state.user = { name: "Guest", email: "guest" }; renderApp(); }
+    else renderLogin();
+  }
+}
+function renderLogin() {
+  document.getElementById("app").innerHTML = `
+    <div class="login-wrap"><div class="login">
+      <div class="brand"><span class="logo">S</span> Synapse</div>
+      <div class="card">
+        <div class="muted" style="margin-bottom:16px">Sign in to your organizational memory.</div>
+        <form id="loginForm">
+          <div class="field"><label>Email</label><input name="email" type="email" value="admin@opsmemory.local" required></div>
+          <div class="field"><label>Password</label><input name="password" type="password" value="opsmemory" required></div>
+          <button class="btn primary" style="width:100%;margin-top:18px;justify-content:center" type="submit">Sign in</button>
+        </form>
+      </div>
+      <div class="faint" style="text-align:center;margin-top:14px;font-size:12px">Default: admin@opsmemory.local / opsmemory</div>
+    </div></div>`;
+  document.getElementById("loginForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    try {
+      const r = await api("/api/v1/auth/login", { method: "POST", body: { email: f.get("email"), password: f.get("password") } });
+      state.token = r.token; state.user = r.user; localStorage.setItem("synapse_token", r.token);
+      renderApp();
+    } catch (err) { toast("Login failed: " + err.message, true); }
+  };
+}
+function logout() {
+  api("/api/v1/auth/logout", { method: "POST" }).catch(() => {});
+  state.token = ""; state.user = null; localStorage.removeItem("synapse_token");
+  location.hash = ""; renderLogin();
+}
+
+// ---- Shell ----
+function renderApp() {
+  const initials = (state.user?.name || state.user?.email || "U").slice(0, 1).toUpperCase();
+  document.getElementById("app").innerHTML = `
+    <aside class="sidebar">
+      <div class="brand"><span class="logo">S</span> Synapse</div>
+      <nav class="nav" id="nav">
+        <a data-route="" href="#/"><span class="ico">◈</span> Dashboard</a>
+        <a data-route="incidents" href="#/incidents"><span class="ico">❑</span> Incidents</a>
+        <a data-route="meetings" href="#/meetings"><span class="ico">▤</span> Meeting Intelligence</a>
+        <a data-route="assistant" href="#/assistant"><span class="ico">✦</span> Assistant</a>
+      </nav>
+      <div class="spacer"></div>
+      <div class="userbox">
+        <div class="avatar">${initials}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(state.user?.name || "User")}</div>
+          <div class="faint" style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(state.user?.email || "")}</div>
+        </div>
+        <button class="btn sm ghost" onclick="logout()" title="Sign out">⇥</button>
+      </div>
+    </aside>
+    <div class="main">
+      <div class="topbar">
+        <div class="search">
+          <span class="ico">⌕</span>
+          <input id="globalSearch" placeholder="Search incidents, ask the assistant…" />
+        </div>
+        <button class="btn ghost sm" id="bell" onclick="openNotifications()" title="Notifications" style="position:relative">🔔<span id="bellCount" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;border-radius:999px;font-size:10px;padding:0 5px"></span></button>
+        <button class="btn primary" onclick="openCreateIncident()">＋ New incident</button>
+      </div>
+      <div class="content" id="view"><div class="empty"><span class="spin"></span></div></div>
+    </div>`;
+  document.getElementById("globalSearch").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target.value.trim()) { location.hash = "#/assistant?q=" + encodeURIComponent(e.target.value.trim()); e.target.value = ""; }
+  });
+  pollNotifications();
+  router();
+}
+
+// ---- Router ----
+function setActiveNav(route) {
+  document.querySelectorAll("#nav a").forEach((a) => a.classList.toggle("active", a.dataset.route === route));
+}
+function router() {
+  if (!state.user) return;
+  const hash = location.hash.slice(2); // strip "#/"
+  const [path, query] = hash.split("?");
+  const params = new URLSearchParams(query || "");
+  if (path.startsWith("incident/")) { setActiveNav("incidents"); return viewIncident(path.split("/")[1]); }
+  if (path === "incidents") { setActiveNav("incidents"); return viewIncidents(); }
+  if (path === "meetings") { setActiveNav("meetings"); return viewMeetingIntelligence(); }
+  if (path === "assistant") { setActiveNav("assistant"); return viewAssistant(params.get("q") || ""); }
+  setActiveNav(""); return viewDashboard();
+}
+window.addEventListener("hashchange", router);
+
+// ---- Dashboard ----
+async function viewDashboard() {
+  const v = document.getElementById("view");
+  v.innerHTML = `<div class="empty"><span class="spin"></span></div>`;
+  try {
+    const d = await api("/api/v1/dashboard");
+    const stat = (n, l, ico) => `<div class="card stat"><span class="ico">${ico}</span><div class="n">${n}</div><div class="l">${l}</div></div>`;
+    const recent = (title, items, render) => `
+      <div class="section-title">${title}</div>
+      ${items.length ? `<div class="grid" style="gap:8px">${items.map(render).join("")}</div>` : `<div class="faint" style="font-size:13px">Nothing yet.</div>`}`;
+    v.innerHTML = `
+      <div class="row between"><div><h1 class="page">Organizational Memory</h1><div class="sub">A living view of what your engineering org knows.</div></div></div>
+      <div class="grid stats" style="margin-top:20px">
+        ${stat(d.total_incidents, "Incidents", "❑")}
+        ${stat(d.active_incidents, "Active", "◉")}
+        ${stat(d.total_memories, "Memories", "◇")}
+        ${stat(d.total_meetings, "Meetings", "▤")}
+        ${stat(d.total_documents, "Documents", "▧")}
+      </div>
+      ${recent("Recently updated incidents", d.recent_incidents, incidentCard)}
+      <div class="grid cards" style="margin-top:8px">
+        <div>${recent("Recently learned memories", d.recent_memories, miniItem)}</div>
+        <div>${recent("Recent meetings", d.recent_meetings, miniItem)}</div>
+        <div>${recent("Recent documents", d.recent_documents, miniItem)}</div>
+      </div>`;
+  } catch (e) { v.innerHTML = errorBox(e); }
+}
+const miniItem = (i) => `<div class="card" style="padding:11px 14px"><div style="font-weight:600;font-size:13px">${esc(i.label)}</div><div class="faint" style="font-size:12px;margin-top:2px">${esc(i.detail || "")}</div></div>`;
+
+function incidentCard(i) {
+  return `<a class="card" href="#/incident/${i.id}">
+    <div class="row between">
+      <span class="faint" style="font-size:12px;font-weight:600">${esc(i.reference)}</span>
+      ${sevPill(i.severity)}
+    </div>
+    <div class="inc-title">${esc(i.title)}</div>
+    <div class="row" style="gap:8px">${stPill(i.status)}</div>
+    <div class="metaline">
+      <span><b>${i.counts.documents}</b> docs</span>
+      <span><b>${i.counts.meetings}</b> meetings</span>
+      <span><b>${i.counts.memories}</b> memories</span>
+      <span><b>${i.counts.experiences}</b> lessons</span>
+      <span style="margin-left:auto">upd ${fmtDate(i.updated_at)}</span>
+    </div>
+  </a>`;
+}
+
+// ---- Incidents ----
+async function viewIncidents() {
+  const v = document.getElementById("view");
+  v.innerHTML = `<div class="empty"><span class="spin"></span></div>`;
+  try {
+    const incidents = await api("/api/v1/incidents");
+    v.innerHTML = `
+      <div class="row between"><div><h1 class="page">Incidents</h1><div class="sub">Each incident is a continuously growing knowledge hub.</div></div>
+        <button class="btn primary" onclick="openCreateIncident()">＋ New incident</button></div>
+      ${incidents.length ? `<div class="grid cards" style="margin-top:20px">${incidents.map(incidentCard).join("")}</div>`
+        : `<div class="empty">No incidents yet.<br><br><button class="btn primary" onclick="openCreateIncident()">Create your first incident</button></div>`}`;
+  } catch (e) { v.innerHTML = errorBox(e); }
+}
+
+// ---- Incident detail ----
+const activeTab = {};
+async function viewIncident(id) {
+  const v = document.getElementById("view");
+  v.innerHTML = `<div class="empty"><span class="spin"></span></div>`;
+  let inc;
+  try { inc = await api("/api/v1/incidents/" + id); } catch (e) { v.innerHTML = errorBox(e); return; }
+  const tab = activeTab[id] || "data";
+  v.innerHTML = `
+    <a class="faint" href="#/incidents" style="font-size:12.5px">← Incidents</a>
+    <div class="row between" style="margin-top:10px">
+      <div>
+        <div class="row" style="gap:10px">
+          <span class="faint" style="font-weight:700">${esc(inc.reference)}</span>${sevPill(inc.severity)}${stPill(inc.status)}
+        </div>
+        <h1 class="page" style="margin-top:8px">${esc(inc.title)}</h1>
+        <div class="sub">${esc(inc.description || "No description")}</div>
+      </div>
+      <div class="row">
+        <select id="statusSel" style="width:auto">${["open","mitigated","resolved"].map(s=>`<option ${s===inc.status?"selected":""}>${s}</option>`).join("")}</select>
+        <button class="btn sm" onclick="archiveIncident('${id}')">Archive</button>
+      </div>
+    </div>
+    <div class="metaline" style="margin-top:14px">
+      <span><b>${inc.counts.documents}</b> documents</span><span><b>${inc.counts.meetings}</b> meetings</span>
+      <span><b>${inc.counts.memories}</b> memories</span><span><b>${inc.counts.experiences}</b> experiences</span>
+      <span><b>${(inc.links||[]).length}</b> linked</span>
+    </div>
+    <div class="tabs" id="tabs">
+      <button data-tab="data" class="${tab==="data"?"active":""}">Data Collection</button>
+      <button data-tab="docs" class="${tab==="docs"?"active":""}">Documentation</button>
+      <button data-tab="chat" class="${tab==="chat"?"active":""}">AI Chat</button>
+    </div>
+    <div id="tabbody"></div>`;
+  document.getElementById("statusSel").onchange = async (e) => {
+    try { await api("/api/v1/incidents/" + id, { method: "PATCH", body: { status: e.target.value } }); toast("Status updated"); } catch (err) { toast(err.message, true); }
+  };
+  document.querySelectorAll("#tabs button").forEach((b) => b.onclick = () => { activeTab[id] = b.dataset.tab; viewIncident(id); });
+  if (tab === "data") renderDataCollection(id, inc);
+  else if (tab === "docs") renderDocumentation(id, inc);
+  else renderIncidentChat(id, inc);
+}
+
+// Data Collection tab — connectors rendered from a dynamic list.
+const CONNECTORS = [
+  { key: "document", icon: "▧", name: "Upload Document", desc: "PDF, Markdown, TXT, runbooks, postmortems, RCAs.", enabled: true },
+  { key: "manual", icon: "✎", name: "Manual Knowledge", desc: "Add a lesson, root cause, resolution, or decision.", enabled: true },
+  { key: "invite", icon: "▤", name: "Invite Meeting Bot", desc: "Recall.ai joins a meeting; the transcript enriches this incident.", enabled: true },
+  { key: "attach", icon: "🔗", name: "Attach Meeting", desc: "Attach an existing recorded meeting to this incident.", enabled: true },
+  { key: "github", icon: "⎇", name: "GitHub", desc: "Repos, ADRs, issues.", enabled: false },
+  { key: "slack", icon: "◒", name: "Slack", desc: "Incident channels & threads.", enabled: false },
+];
+async function renderDataCollection(id, inc) {
+  const body = document.getElementById("tabbody");
+  body.innerHTML = `
+    <div class="section-title">Teach this incident</div>
+    <div class="grid cards">
+      ${CONNECTORS.map(c => `
+        <div class="card connector-card ${c.enabled ? "hover" : "soon"}" ${c.enabled ? `onclick="openSource('${id}','${c.key}')"` : ""} style="cursor:${c.enabled?"pointer":"default"}">
+          <div class="cico">${c.icon}</div>
+          <div><div style="font-weight:650">${c.name} ${c.enabled ? "" : '<span class="chip" style="margin-left:6px">soon</span>'}</div>
+          <div class="faint" style="font-size:12.5px;margin-top:2px">${c.desc}</div></div>
+        </div>`).join("")}
+    </div>
+    <div id="suggestZone"></div>
+    ${(inc.meetings||[]).length ? `<div class="section-title">Meetings</div><div class="grid" style="gap:8px">${inc.meetings.map(m => incidentMeetingRow(id, m)).join("")}</div>` : ""}
+    <div class="section-title">Collected evidence</div>
+    <div class="grid" style="gap:8px" id="evidence"></div>`;
+  const ev = document.getElementById("evidence");
+  const all = [...(inc.documents||[]), ...(inc.experiences||[])];
+  ev.innerHTML = all.length ? all.map(e => `
+    <div class="card" style="padding:11px 14px" ${e.url ? `onclick="window.open('${e.url}','_blank')" style="cursor:pointer;padding:11px 14px"`: ""}>
+      <div class="row between"><div style="font-weight:600;font-size:13px">${esc(e.label)}</div><span class="chip">${e.kind}</span></div>
+      ${e.detail ? `<div class="faint" style="font-size:12px;margin-top:3px">${esc(e.detail)}</div>` : ""}
+    </div>`).join("") : `<div class="faint" style="font-size:13px">No documents or experiences yet — add knowledge above.</div>`;
+  renderSuggestions(id, inc.suggestions || []);
+}
+function incidentMeetingRow(incidentId, m) {
+  return `<div class="card" style="padding:11px 14px">
+    <div class="row between"><div style="font-weight:600;font-size:13px">${esc(m.label)}</div><span class="chip">${esc(m.status || "meeting")}</span></div>
+    <div class="row" style="gap:8px;margin-top:9px">
+      <a class="btn sm ghost" href="/api/v1/meetings/${m.id}/transcript" target="_blank">Transcript</a>
+      ${m.url ? `<a class="btn sm ghost" href="${m.url}" target="_blank">Video</a>` : ""}
+      <button class="btn sm ghost" onclick="deleteMeeting('${m.id}','${incidentId}')">Delete</button>
+    </div>
+  </div>`;
+}
+function renderSuggestions(id, suggestions) {
+  const zone = document.getElementById("suggestZone");
+  if (!zone || !suggestions.length) return;
+  zone.innerHTML = `<div class="section-title">Possible related incidents</div>` + suggestions.map(s => `
+    <div class="suggest">
+      <div class="row between"><div><b>${esc(s.reference)}</b> — ${esc(s.title)}</div><span class="pct">${Math.round(s.similarity*100)}% similar</span></div>
+      ${s.shared_services?.length ? `<div class="metaline" style="margin-top:6px"><b>Shared:</b> ${s.shared_services.map(esc).join(", ")}</div>` : ""}
+      <div class="muted" style="font-size:13px;margin:8px 0">${esc(s.rationale)}</div>
+      <div class="row"><button class="btn sm primary" onclick="linkIncident('${id}','${s.incident_id}',${s.similarity})">Link incidents</button>
+        <button class="btn sm ghost" onclick="this.closest('.suggest').remove()">Ignore</button></div>
+    </div>`).join("");
+}
+async function linkIncident(id, target, sim) {
+  try { await api(`/api/v1/incidents/${id}/links`, { method: "POST", body: { target_id: target, similarity: sim, reason: "Linked from AI suggestion" } });
+    toast("Incidents linked"); viewIncident(id); } catch (e) { toast(e.message, true); }
+}
+
+// Documentation tab
+function renderDocumentation(id, inc) {
+  const body = document.getElementById("tabbody");
+  const sections = inc.documentation?.sections || [];
+  body.innerHTML = `
+    <div class="row between"><div class="faint" style="font-size:12.5px">Living documentation — regenerated from evidence, never hand-edited.${inc.documentation_generated_at ? " Updated " + new Date(inc.documentation_generated_at).toLocaleString() : ""}</div>
+      <button class="btn sm" onclick="regenDoc('${id}')">↻ Regenerate</button></div>
+    <div style="margin-top:16px">
+    ${sections.length ? sections.map(sec => `
+      <div class="doc-sec${sec.key === "detailed_summary" ? " detail" : ""}">
+        <h3>${esc(sec.title)} <span class="faint" style="font-weight:500">${sec.items.length} item(s)</span></h3>
+        <ul>${sec.items.map(it => `<li>${esc(it)}</li>`).join("")}</ul>
+        ${sec.sources?.length ? `<div class="sources">${sec.sources.map(sc => `<span class="src ${sc.type}" ${sc.url?`onclick="window.open('${sc.url}','_blank')" style="cursor:pointer"`:""} title="${esc(sc.type)}">◆ ${esc(sc.label)}</span>`).join("")}</div>` : ""}
+      </div>`).join("") : `<div class="empty">No documentation yet. Add evidence on the Data Collection tab and it will generate automatically.</div>`}
+    </div>
+    ${(inc.timeline||[]).length ? `<div class="section-title">Timeline</div>
+      <div class="doc-sec"><ul>${inc.timeline.map(ev => `<li><span class="faint" style="font-variant-numeric:tabular-nums">${new Date(ev.at).toLocaleString()}</span> — ${esc(ev.label)} <span class="chip" style="margin-left:6px">${esc(ev.kind)}</span></li>`).join("")}</ul></div>` : ""}`;
+}
+async function regenDoc(id) { try { await api(`/api/v1/incidents/${id}/documentation/regenerate`, { method: "POST" }); toast("Documentation regenerated"); viewIncident(id); } catch (e) { toast(e.message, true); } }
+
+// Incident chat tab
+const incidentChatLog = {};
+function renderIncidentChat(id, inc) {
+  const body = document.getElementById("tabbody");
+  const log = incidentChatLog[id] || [];
+  body.innerHTML = `
+    <div class="faint" style="font-size:12.5px;margin-bottom:14px">Ask questions answered only from <b>${esc(inc.reference)}</b>'s knowledge.</div>
+    <div class="chat-log" id="clog">${log.map(chatBubble).join("") || `<div class="faint" style="font-size:13px">Try: "What caused this?" · "What was the resolution?" · "What lessons were learned?"</div>`}</div>
+    <form id="cform" class="row"><input id="cin" placeholder="Ask about this incident…" autocomplete="off"><button class="btn primary" type="submit">Ask</button></form>`;
+  document.getElementById("cform").onsubmit = async (e) => {
+    e.preventDefault();
+    const q = document.getElementById("cin").value.trim(); if (!q) return;
+    log.push({ role: "user", text: q }); incidentChatLog[id] = log; document.getElementById("cin").value = "";
+    document.getElementById("clog").innerHTML = log.map(chatBubble).join("") + `<div class="msg bot"><span class="spin"></span></div>`;
+    try {
+      const r = await api(`/api/v1/incidents/${id}/chat`, { method: "POST", body: { message: q } });
+      log.push({ role: "bot", text: r.answer, confidence: r.confidence, citations: r.citations });
+    } catch (err) { log.push({ role: "bot", text: "Error: " + err.message }); }
+    document.getElementById("clog").innerHTML = log.map(chatBubble).join("");
+    document.getElementById("clog").lastElementChild?.scrollIntoView({ behavior: "smooth" });
+  };
+}
+function chatBubble(m) {
+  if (m.role === "user") return `<div class="msg user">${esc(m.text)}</div>`;
+  const cites = (m.citations || []).map(c => `<span class="chip">${esc(typeof c === "string" ? c : c.title)}</span>`).join("");
+  const meta = (m.confidence !== undefined) ? `<div class="meta">confidence ${(m.confidence*100).toFixed(0)}% ${cites}</div>` : "";
+  return `<div class="msg bot">${esc(m.text)}${meta}</div>`;
+}
+
+// Global assistant
+const assistantLog = [];
+async function viewAssistant(prefill) {
+  setActiveNav("assistant");
+  const v = document.getElementById("view");
+  v.innerHTML = `
+    <h1 class="page">AI Assistant</h1><div class="sub">Ask across every incident. Answers are evidence-backed with related incidents.</div>
+    <div class="chat-log" id="alog" style="margin-top:22px">${assistantLog.map(chatBubble).join("") || `<div class="faint" style="font-size:13px">Try: "Have we experienced Redis authentication failures before?"</div>`}</div>
+    <form id="aform" class="row"><input id="ain" placeholder="Ask the organization…" autocomplete="off"><button class="btn primary" type="submit">Ask</button></form>`;
+  const send = async (q) => {
+    assistantLog.push({ role: "user", text: q });
+    document.getElementById("alog").innerHTML = assistantLog.map(chatBubble).join("") + `<div class="msg bot"><span class="spin"></span></div>`;
+    try {
+      const r = await api("/api/v1/assistant", { method: "POST", body: { message: q } });
+      let text = r.answer;
+      if (r.related_incidents?.length) text += "\n\nRelated: " + r.related_incidents.map(ri => `${ri.reference} (${Math.round(ri.score*100)}%)`).join(", ");
+      assistantLog.push({ role: "bot", text, confidence: r.confidence, citations: r.citations });
+    } catch (err) { assistantLog.push({ role: "bot", text: "Error: " + err.message }); }
+    document.getElementById("alog").innerHTML = assistantLog.map(chatBubble).join("");
+    document.getElementById("alog").lastElementChild?.scrollIntoView({ behavior: "smooth" });
+  };
+  document.getElementById("aform").onsubmit = (e) => { e.preventDefault(); const q = document.getElementById("ain").value.trim(); if (q) { document.getElementById("ain").value = ""; send(q); } };
+  if (prefill) { document.getElementById("ain").value = prefill; send(prefill); document.getElementById("ain").value = ""; }
+}
+
+// ---- Modals ----
+function modal(html) {
+  const root = document.getElementById("modal-root");
+  root.innerHTML = `<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>`;
+}
+function closeModal() { document.getElementById("modal-root").innerHTML = ""; }
+
+function openCreateIncident() {
+  modal(`<h2>New incident</h2><div class="muted">Start a new knowledge hub.</div>
+    <form id="ncform">
+      <div class="field"><label>Title</label><input name="title" required placeholder="e.g. payments-api Redis outage"></div>
+      <div class="field"><label>Description</label><textarea name="description" placeholder="What happened?"></textarea></div>
+      <div class="row" style="gap:12px">
+        <div class="field" style="flex:1"><label>Severity</label><select name="severity">${["sev1","sev2","sev3","sev4"].map(s=>`<option value="${s}" ${s==="sev3"?"selected":""}>${s.toUpperCase()}</option>`).join("")}</select></div>
+        <div class="field" style="flex:1"><label>Status</label><select name="status">${["open","mitigated","resolved"].map(s=>`<option>${s}</option>`).join("")}</select></div>
+      </div>
+      <div class="actions"><button type="button" class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn primary" type="submit">Create</button></div>
+    </form>`);
+  document.getElementById("ncform").onsubmit = async (e) => {
+    e.preventDefault(); const f = new FormData(e.target);
+    try { const inc = await api("/api/v1/incidents", { method: "POST", body: Object.fromEntries(f) }); closeModal(); location.hash = "#/incident/" + inc.id; toast("Incident " + inc.reference + " created"); }
+    catch (err) { toast(err.message, true); }
+  };
+}
+
+async function openSource(id, key) {
+  if (key === "document") {
+    modal(`<h2>Upload document</h2><div class="muted">Parsed, chunked, embedded, and cited automatically.</div>
+      <form id="sform">
+        <div class="field"><label>Title</label><input name="title" required placeholder="Redis Recovery Runbook"></div>
+        <div class="field"><label>Content</label><textarea name="content" required style="min-height:180px" placeholder="Paste markdown / text…"></textarea></div>
+        <div class="field"><label>Format</label><select name="content_type">${["markdown","text","yaml","json","html"].map(s=>`<option>${s}</option>`).join("")}</select></div>
+        <div class="actions"><button type="button" class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn primary" type="submit">Ingest</button></div>
+      </form>`);
+    hookSource(id, "sform", `/api/v1/incidents/${id}/documents`, (f) => Object.fromEntries(f));
+  } else if (key === "manual") {
+    modal(`<h2>Manual knowledge</h2><div class="muted">Directly teach this incident.</div>
+      <form id="sform">
+        <div class="field"><label>Type</label><select name="kind">${[["operational_experience","Operational experience"],["lesson","Lesson learned"],["root_cause","Root cause"],["resolution","Resolution"],["architecture_decision","Architecture decision"],["action_item","Action item"]].map(([v,l])=>`<option value="${v}">${l}</option>`).join("")}</select></div>
+        <div class="field"><label>Content</label><textarea name="content" required placeholder="Describe the knowledge…"></textarea></div>
+        <div class="actions"><button type="button" class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn primary" type="submit">Add</button></div>
+      </form>`);
+    hookSource(id, "sform", `/api/v1/incidents/${id}/knowledge`, (f) => Object.fromEntries(f));
+  } else if (key === "invite") {
+    modal(`<h2>Invite meeting bot</h2><div class="muted">The bot joins, records, and enriches this incident when the meeting ends.</div>
+      <form id="sform">
+        <div class="field"><label>Meeting URL</label><input name="meeting_url" required placeholder="https://meet.google.com/…"></div>
+        <div class="field"><label>Title <span class="faint">(optional)</span></label><input name="title" placeholder="Incident review"></div>
+        <div class="actions"><button type="button" class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn primary" type="submit">Invite bot</button></div>
+      </form>`);
+    document.getElementById("sform").onsubmit = async (e) => {
+      e.preventDefault();
+      const btn = e.target.querySelector('button[type=submit]'); btn.innerHTML = '<span class="spin"></span>'; btn.disabled = true;
+      try { await api(`/api/v1/incidents/${id}/meetings/invite`, { method: "POST", body: Object.fromEntries(new FormData(e.target)) });
+        closeModal(); toast("Bot invited — it will join the meeting"); viewIncident(id); }
+      catch (err) { toast(err.message, true); btn.disabled = false; btn.textContent = "Retry"; }
+    };
+  } else if (key === "attach") {
+    let meetings = [];
+    try { meetings = await api("/api/v1/meetings"); } catch (e) {}
+    const unattached = meetings.filter(m => !m.incident_id);
+    modal(`<h2>Attach meeting</h2><div class="muted">Recall.ai meetings the bot has recorded.</div>
+      ${unattached.length ? `<form id="sform"><div class="field"><label>Meeting</label><select name="meeting_id">${unattached.map(m=>`<option value="${m.id}">${esc(m.title || m.id)} · ${m.status}</option>`).join("")}</select></div>
+        <div class="actions"><button type="button" class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn primary" type="submit">Attach</button></div></form>`
+        : `<div class="empty" style="padding:30px">No unattached meetings.<br><span class="faint">Invite the bot from the card beside this one.</span></div><div class="actions"><button class="btn ghost" onclick="closeModal()">Close</button></div>`}`);
+    if (unattached.length) hookSource(id, "sform", `/api/v1/incidents/${id}/meetings`, (f) => Object.fromEntries(f));
+  }
+}
+function hookSource(id, formId, path, build) {
+  document.getElementById(formId).onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]'); btn.innerHTML = '<span class="spin"></span>'; btn.disabled = true;
+    try {
+      const r = await api(path, { method: "POST", body: build(new FormData(e.target)) });
+      closeModal();
+      const n = r.memories_added; toast(n ? `Learned — ${n} memories added` : "Ingested");
+      if (r.suggestions?.length) toast(`AI found ${r.suggestions.length} related incident(s)`);
+      viewIncident(id);
+    } catch (err) { toast(err.message, true); btn.disabled = false; btn.textContent = "Retry"; }
+  };
+}
+
+async function archiveIncident(id) {
+  try { await api(`/api/v1/incidents/${id}/archive`, { method: "POST" }); toast("Incident archived"); location.hash = "#/incidents"; }
+  catch (e) { toast(e.message, true); }
+}
+function errorBox(e) { return `<div class="empty">Couldn't load: ${esc(e.message)}</div>`; }
+
+// ---- Meeting Intelligence ----
+const MEETING_STATUS = { scheduled: "🟡 scheduled", recording: "🔴 recording", completed: "🟢 completed", processed: "✅ processed", failed: "⚠ failed" };
+async function viewMeetingIntelligence() {
+  const v = document.getElementById("view");
+  v.innerHTML = `<div class="empty"><span class="spin"></span></div>`;
+  let meetings = [], incidents = [];
+  try { [meetings, incidents] = await Promise.all([api("/api/v1/meetings"), api("/api/v1/incidents")]); }
+  catch (e) { v.innerHTML = errorBox(e); return; }
+  const incById = Object.fromEntries(incidents.map(i => [i.id, i]));
+  v.innerHTML = `
+    <h1 class="page">Meeting Intelligence</h1>
+    <div class="sub">Invite the bot to an engineering meeting — it becomes evidence that enriches an incident's memory.</div>
+    <div class="grid cards" style="margin-top:20px;grid-template-columns:minmax(0,420px) 1fr">
+      <div class="card">
+        <div style="font-weight:650;margin-bottom:4px">Invite meeting bot</div>
+        <div class="faint" style="font-size:12.5px;margin-bottom:12px">The bot joins, records, and after the meeting Synapse extracts engineering knowledge.</div>
+        <form id="inviteForm">
+          <div class="field"><label>Meeting URL</label><input name="meeting_url" required placeholder="https://meet.google.com/… or Zoom/Teams"></div>
+          <div class="field"><label>Meeting title <span class="faint">(optional)</span></label><input name="title" placeholder="Incident Review"></div>
+          <div class="field"><label>Incident</label>
+            <select name="incident_id" id="invIncident">
+              <option value="">— Select existing incident —</option>
+              ${incidents.map(i => `<option value="${i.id}">${esc(i.reference)} · ${esc(i.title)}</option>`).join("")}
+            </select>
+          </div>
+          <label class="teach" style="margin-top:10px"><input type="checkbox" id="invNew"> ☐ This is a new incident (AI will name it after the meeting)</label>
+          <button class="btn primary" type="submit" style="width:100%;justify-content:center;margin-top:16px">Invite bot</button>
+        </form>
+      </div>
+      <div>
+        <div class="section-title" style="margin-top:0">Recent meetings</div>
+        <div class="grid" style="gap:8px">
+          ${meetings.length ? meetings.map(m => meetingRow(m, incById)).join("") : `<div class="faint" style="font-size:13px">No meetings yet.</div>`}
+        </div>
+      </div>
+    </div>`;
+  const sel = document.getElementById("invIncident"), chk = document.getElementById("invNew");
+  chk.addEventListener("change", () => { sel.disabled = chk.checked; if (chk.checked) sel.value = ""; });
+  document.getElementById("inviteForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const body = { meeting_url: f.get("meeting_url"), title: f.get("title") || null };
+    if (!chk.checked && f.get("incident_id")) body.incident_id = f.get("incident_id");
+    const btn = e.target.querySelector('button[type=submit]'); btn.innerHTML = '<span class="spin"></span>'; btn.disabled = true;
+    try { await api("/api/v1/meetings", { method: "POST", body }); toast("Bot invited — it will join the meeting"); viewMeetingIntelligence(); }
+    catch (err) { toast(err.message, true); btn.disabled = false; btn.textContent = "Invite bot"; }
+  };
+}
+function meetingRow(m, incById) {
+  const inc = m.incident_id ? incById[m.incident_id] : null;
+  return `<div class="card" style="padding:12px 14px">
+    <div class="row between">
+      <div style="font-weight:600">${esc(m.title || "Untitled meeting")}</div>
+      <span class="chip">${MEETING_STATUS[m.status] || m.status}</span>
+    </div>
+    <div class="metaline" style="margin-top:8px">
+      ${inc ? `<span><b>${esc(inc.reference)}</b> ${esc(inc.title).slice(0,40)}</span>` : `<span class="faint">new incident (pending AI title)</span>`}
+      <span>transcript ${m.transcript_downloaded ? "✓" : "…"}</span>
+      <span>summary ${m.summary_generated ? "✓" : "…"}</span>
+      <span>memory ${m.cognee_synced ? "✓" : "…"}</span>
+      ${m.duration_seconds ? `<span>${Math.round(m.duration_seconds/60)}m</span>` : ""}
+    </div>
+    <div class="row" style="gap:8px;margin-top:10px">
+      ${inc ? `<a class="btn sm" href="#/incident/${m.incident_id}">Open incident</a>` : ""}
+      ${m.transcript_downloaded ? `<a class="btn sm ghost" href="/api/v1/meetings/${m.id}/transcript" target="_blank">Transcript</a>` : ""}
+      ${m.recording_url ? `<a class="btn sm ghost" href="${m.recording_url}" target="_blank">Video</a>` : ""}
+      <button class="btn sm ghost" onclick="deleteMeeting('${m.id}', null)">Delete</button>
+    </div>
+  </div>`;
+}
+async function deleteMeeting(id, incidentId) {
+  if (!confirm("Delete this meeting? Its transcript, summary, memories and graph traces are removed and the incident documentation is regenerated.")) return;
+  try { await api(`/api/v1/meetings/${id}`, { method: "DELETE" }); toast("Meeting deleted — documentation recomputed");
+    if (incidentId) viewIncident(incidentId); else viewMeetingIntelligence(); }
+  catch (e) { toast(e.message, true); }
+}
+
+// ---- Notifications ----
+async function pollNotifications() {
+  if (!state.user) return;
+  try {
+    const items = await api("/api/v1/notifications?unread_only=true");
+    const badge = document.getElementById("bellCount");
+    if (badge) {
+      if (items.length) { badge.textContent = items.length > 9 ? "9+" : items.length; badge.style.display = "inline"; }
+      else badge.style.display = "none";
+    }
+  } catch (e) { /* ignore */ }
+  setTimeout(pollNotifications, 15000);
+}
+async function openNotifications() {
+  let items = [];
+  try { items = await api("/api/v1/notifications"); } catch (e) {}
+  modal(`<h2>Notifications</h2>
+    <div style="max-height:50vh;overflow:auto;margin-top:12px">
+      ${items.length ? items.map(n => `<div class="card" style="padding:10px 13px;margin-bottom:8px">
+        <div class="row between"><b style="font-size:13px">${esc(n.title)}</b><span class="chip">${esc(n.kind)}</span></div>
+        ${n.body ? `<div class="faint" style="font-size:12px;margin-top:3px">${esc(n.body)}</div>` : ""}
+        ${n.incident_id ? `<a class="faint" style="font-size:12px" href="#/incident/${n.incident_id}" onclick="closeModal()">Open incident →</a>` : ""}
+      </div>`).join("") : `<div class="faint" style="font-size:13px">No notifications.</div>`}
+    </div>
+    <div class="actions"><button class="btn ghost" onclick="markNotificationsRead()">Mark all read</button><button class="btn primary" onclick="closeModal()">Close</button></div>`);
+}
+async function markNotificationsRead() {
+  try { await api("/api/v1/notifications/read", { method: "POST" }); } catch (e) {}
+  closeModal(); pollNotifications();
+}
+
+boot();
+</script>
+</body>
+</html>

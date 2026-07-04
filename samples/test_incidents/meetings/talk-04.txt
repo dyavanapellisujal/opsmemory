@@ -1,0 +1,7 @@
+Alright, the S3 upload issue. Sev 3. Users couldn't upload profile pictures, getting Access Denied errors.
+
+The root cause was a Terraform change by the infra team that accidentally stripped the s3:PutObject permission from the user-profile-service IAM role. 
+
+We fixed it by reverting that Terraform pull request and running terraform apply immediately to restore the old IAM policy.
+
+Lesson learned is that IAM changes are too risky to do manually without automated checks. We need to integrate AWS IAM Access Analyzer into our GitHub Actions to validate policies before merging.

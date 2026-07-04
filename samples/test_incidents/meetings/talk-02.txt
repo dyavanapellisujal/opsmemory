@@ -1,0 +1,31 @@
+[00:00:00] Alice (SRE Lead): Alright everyone, thanks for jumping on. Let's talk about the node evictions we saw yesterday. This was declared as a Sev 3. Our Kubernetes worker nodes were going into a NotReady state and pods were getting evicted left and right. Bob, you were primary on call when the alerts fired. Can you walk us through the timeline?
+
+[00:00:25] Bob (On-Call SRE): Yeah, sure. Around 14:30 UTC, PagerDuty went off for high memory utilization on worker-node-4. Before I could even log into the cluster to check what was going on, worker-node-4 went NotReady. Then, about five minutes later, worker-node-7 triggered the same alert and also dropped out of the cluster.
+
+[00:01:05] Charlie (Backend Dev): Did we lose any customer traffic during this?
+
+[00:01:12] Bob: Briefly, yes. Because the nodes died so suddenly, the pods running on them were evicted and rescheduled. The API gateway saw a spike in 502 Bad Gateway errors for about two minutes while the new pods spun up and passed their readiness probes on the healthy nodes. But then the new nodes started filling up with memory too. It was a cascading failure.
+
+[00:01:45] Alice: So how did we identify the culprit? 
+
+[00:01:50] Bob: I started looking at the memory metrics in Grafana for the remaining healthy nodes. I noticed that one specific service—the image-resizer service—had a memory graph that looked like a hockey stick. It was just climbing continuously. It turns out the image-resizer service had a massive memory leak introduced in the last deployment.
+
+[00:02:15] Charlie: Ah, right. We deployed a new version of the image processing library yesterday morning. It must not be releasing memory buffers properly after processing large image files. But wait, shouldn't the pod have just OOMKilled before taking down the whole node?
+
+[00:02:35] Bob: That's the main issue. Because someone forgot to set memory limits on the pod in the deployment manifest, it just ate the entire node's memory until the OS became unresponsive and the kubelet crashed. Without a limit, Kubernetes didn't know it needed to kill the container.
+
+[00:03:00] Alice: Okay, so what was the immediate mitigation?
+
+[00:03:05] Bob: To mitigate, we had to cordon and drain the broken nodes so no new workloads would get scheduled there. Then, we patched the image-resizer deployment to enforce a strict 2 Gigabyte memory limit. Once the new pods rolled out, we saw them getting OOMKilled individually when they hit the 2GB threshold, which is bad, but it protected the nodes from crashing and stopped the cascading failure.
+
+[00:03:40] Charlie: Okay, I'll take a ticket to fix the memory leak in the image processing library today. We'll roll back to the previous library version in the meantime.
+
+[00:04:00] Alice: Sounds good. But the bigger lesson learned here is that we must enforce memory limits on every single deployment. A single leaky service shouldn't be able to nuke a worker node. 
+
+[00:04:15] Bob: Agreed. Can we put something in place to prevent deployments without limits?
+
+[00:04:22] Alice: Yes. Let's write an OPA Gatekeeper policy to reject any pod creation requests that don't have memory limits defined. Bob, can you take the action item to draft that policy and get it applied to the pre-prod cluster by next week?
+
+[00:04:40] Bob: You got it. I'll get that drafted. 
+
+[00:04:45] Alice: Great. If there's nothing else, let's wrap this up. Thanks everyone.

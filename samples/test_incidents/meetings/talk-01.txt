@@ -1,0 +1,7 @@
+Alright team, let's review the orders-db deadlock incident from this morning. It was a Sev 2. Basically, the orders database was locking up completely, and checkout was failing. 
+
+The root cause was that new background job we deployed in the payment-processor. It was acquiring locks in the opposite order of the main checkout flow, causing an AB/BA deadlock in Postgres.
+
+To fix it, we manually connected to Postgres, found the blocking queries using pg_stat_activity, and killed them with pg_terminate_backend. Then we immediately rolled back the payment-processor deployment in Kubernetes.
+
+The big lesson here is that any transaction updating multiple tables needs to acquire row locks in the exact same alphabetical order. We need to add a linter rule or CI check for this.

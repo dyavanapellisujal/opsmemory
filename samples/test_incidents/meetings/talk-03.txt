@@ -1,0 +1,7 @@
+Quick debrief on the total outage from the first of the month. Sev 1. Customers couldn't load the site at all, getting SSL errors.
+
+The TLS certificate on the API gateway expired. We use cert-manager for automatic renewals, but the cert-manager pod had been silently crash-looping for three days.
+
+We fixed it by deleting the broken cert-manager pod to force a restart, and then manually triggered a renewal using the cmctl CLI tool.
+
+Obviously, the lesson is that relying on automated renewals without monitoring the expiry date is dangerous. We're going to set up Datadog blackbox monitoring to alert us if any cert is within 14 days of expiring.

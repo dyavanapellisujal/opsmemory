@@ -1,0 +1,97 @@
+# Default values for the OpsMemory chart.
+
+image:
+  repository: opsmemory
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+api:
+  replicas: 1
+  port: 8000
+
+persistence:
+  enabled: true
+  size: 5Gi
+  accessMode: ReadWriteOnce
+  # storageClass: "standard"
+
+  resources:
+    requests:
+      cpu: 2000m
+      memory: 4Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+# Database connection. In production, point `existingSecret` at a secret
+# containing OPSMEMORY_DATABASE_URL instead of using `url`.
+database:
+  url: "postgresql+asyncpg://opsmemory:opsmemory@opsmemory-postgres:5432/opsmemory"
+  existingSecret: ""
+
+# Application environment variables. Every OPSMEMORY_* setting can be set
+# here; entries with empty values are skipped (the app default applies).
+# For secrets (API keys), prefer `existingSecret` mechanisms in production —
+# values set here end up in the Deployment spec in plain text.
+env:
+  # --- General ---
+  OPSMEMORY_ENVIRONMENT: production
+  OPSMEMORY_LOG_LEVEL: INFO
+
+  # --- AI provider credentials (leave empty for keyless mode) ---
+  OPSMEMORY_GEMINI_API_KEY: ""
+  OPSMEMORY_GROQ_API_KEY: ""
+  OPSMEMORY_ANTHROPIC_API_KEY: ""
+
+  # --- Authentication (bootstrap admin seeded on first startup) ---
+  OPSMEMORY_AUTH_ENABLED: "true"
+  OPSMEMORY_AUTH_BOOTSTRAP_EMAIL: admin@opsmemory.local
+  OPSMEMORY_AUTH_BOOTSTRAP_PASSWORD: opsmemory
+  OPSMEMORY_AUTH_SESSION_TTL_HOURS: "168"
+
+  # --- Provider selection (auto resolves from the keys above) ---
+  # LLM: auto | groq | gemini | anthropic | none
+  OPSMEMORY_LLM_PROVIDER: auto
+  # Embeddings: auto | gemini | hashing   (Groq offers no embeddings API)
+  OPSMEMORY_EMBEDDING_PROVIDER: auto
+
+  # --- Models ---
+  OPSMEMORY_GROQ_MODEL: llama-3.3-70b-versatile
+  OPSMEMORY_GEMINI_MODEL: gemini-2.5-flash
+  OPSMEMORY_ANTHROPIC_MODEL: claude-sonnet-5
+  OPSMEMORY_GEMINI_EMBEDDING_MODEL: gemini-embedding-001
+  # Must match the pgvector column (vector(768)); changing needs a migration.
+  OPSMEMORY_EMBEDDING_DIMENSION: "768"
+  OPSMEMORY_LLM_MAX_TOKENS: "2048"
+
+  # --- Meeting connector (Recall.ai; leave key empty to disable) ---
+  OPSMEMORY_RECALL_API_KEY: ""
+  OPSMEMORY_RECALL_REGION: us-east-1
+  OPSMEMORY_RECALL_WEBHOOK_SECRET: ""
+  OPSMEMORY_RECALL_BOT_NAME: OpsMemory Notetaker
+
+  # --- Memory & graph ---
+  # native (pgvector) | cognee (image must include the cognee extra)
+  OPSMEMORY_MEMORY_ENGINE: cognee
+  OPSMEMORY_GRAPH_DB_PATH: /app/data/graph
+
+  # --- Retrieval budgets ---
+  OPSMEMORY_RETRIEVAL_MAX_MEMORIES: "5"
+  OPSMEMORY_RETRIEVAL_MAX_EXPERIENCES: "3"
+  OPSMEMORY_RETRIEVAL_MAX_DOCUMENTS: "5"
+  OPSMEMORY_RETRIEVAL_MAX_GRAPH_HOPS: "3"
+
+  # --- HTTP docs connector ---
+  OPSMEMORY_HTTP_CRAWL_MAX_PAGES: "50"
+  OPSMEMORY_HTTP_CRAWL_MAX_DEPTH: "3"
+  OPSMEMORY_HTTP_TIMEOUT_SECONDS: "15"
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  host: opsmemory.local
+  tls: false

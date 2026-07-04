@@ -1,0 +1,7 @@
+Let's review the search outage. Sev 2. Search was completely broken, returning nothing.
+
+Turns out our automated index cleanup script in Elasticsearch deleted the active products index. It was supposed to delete old logs, but the regex was missing a boundary and matched the live index!
+
+We resolved it by hitting the AWS Elasticsearch snapshot API to restore the products-v1 index from the nightly backup. It took about 20 minutes to rehydrate.
+
+The lesson is that destructive scripts can't use fuzzy matching. And going forward, any script that deletes data needs a mandatory dry-run flag that gets audited before we run it in production.

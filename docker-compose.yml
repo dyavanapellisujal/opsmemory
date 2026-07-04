@@ -1,0 +1,48 @@
+name: opsmemory
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: opsmemory
+      POSTGRES_PASSWORD: opsmemory
+      POSTGRES_DB: opsmemory
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opsmemory -d opsmemory"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build: .
+    command: ["alembic", "upgrade", "head"]
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - graph-data:/app/data
+      # Mount the repo read-only at the same absolute path as on the host so
+      # `opsmemory ingest ./some-dir` works against the containerized API.
+      - .:${PWD:-/workspace}:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-data:
+  graph-data:
