@@ -89,7 +89,7 @@ class TeachingService:
             source: How the knowledge entered the platform (user vs extraction).
             extracted: Pre-structured experience (e.g. from the meeting
                 pipeline's dedicated extraction) — skips re-extraction.
-            incident_id: Incident this knowledge enriches (Synapse hub); the
+            incident_id: Incident this knowledge enriches (OpsMemory hub); the
                 resulting experience and memory are linked to it.
 
         Returns:

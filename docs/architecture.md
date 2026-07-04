@@ -1,6 +1,6 @@
-# Synapse Architecture
+# OpsMemory Architecture
 
-Synapse is the operational memory layer for engineering teams: it ingests
+OpsMemory is the operational memory layer for engineering teams: it ingests
 engineering knowledge, transforms it into structured operational memory, and
 answers questions with evidence-backed reasoning.
 

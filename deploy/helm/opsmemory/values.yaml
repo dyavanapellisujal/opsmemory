@@ -93,5 +93,14 @@ service:
 ingress:
   enabled: true
   className: nginx
-  host: opsmemory.local
-  tls: false
+  annotations: {}
+  # A single catch-all prefix so EVERY API route is proxied to the app
+  # (/api/v1/meetings, /api/v1/visualize, …). Do not enumerate individual
+  # paths — that silently 404s any route you forget (e.g. meetings).
+  hosts:
+    - host: opsmemory.local
+      paths:
+        - path: /
+          pathType: Prefix
+  # e.g. [{ secretName: opsmemory-tls, hosts: [opsmemory.local] }]
+  tls: []

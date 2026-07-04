@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Synapse — Operational Memory</title>
+<title>OpsMemory — Operational Memory</title>
 <style>
   :root {
     --bg: #0b0d12; --bg-elev: #12151c; --panel: #151922; --panel-2: #1b2029;
@@ -41,6 +41,9 @@
   .btn.primary:hover { filter: brightness(1.08); }
   .btn.ghost { background: transparent; }
   .btn.sm { padding: 5px 10px; font-size: 12.5px; }
+  .btn.mode.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
+  input[type=file] { padding: 8px 10px; font-size: 13px; cursor: pointer; }
+  input[type=file]::file-selector-button { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 10px; margin-right: 10px; cursor: pointer; }
   .muted { color: var(--text-dim); }
   .faint { color: var(--text-faint); }
   .pill {
@@ -185,14 +188,14 @@
 
 <script>
 const API = "";
-const state = { token: localStorage.getItem("synapse_token") || "", user: null, authDisabled: false };
+const state = { token: localStorage.getItem("opsmemory_token") || "", user: null, authDisabled: false };
 
 // ---- API helper ----
 async function api(path, { method = "GET", body } = {}) {
   const headers = { "Content-Type": "application/json" };
   if (state.token) headers.Authorization = "Bearer " + state.token;
   const res = await fetch(API + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
-  if (res.status === 401) { state.token = ""; localStorage.removeItem("synapse_token"); renderLogin(); throw new Error("unauthorized"); }
+  if (res.status === 401) { state.token = ""; localStorage.removeItem("opsmemory_token"); renderLogin(); throw new Error("unauthorized"); }
   if (res.status === 204) return null;
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
@@ -206,6 +209,37 @@ function toast(msg, isErr) {
   setTimeout(() => t.remove(), 3200);
 }
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// Minimal, safe Markdown → HTML (escape first, then format). Handles fenced
+// code blocks, headings, bold, inline code, and bullet lists — enough to make
+// the Detailed Summary render document/meeting content cleanly.
+function mdToHtml(src) {
+  const lines = String(src ?? "").split("\n");
+  const out = [];
+  let inCode = false, codeLang = "", code = [], inList = false;
+  const inline = (t) => esc(t)
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>");
+  const closeList = () => { if (inList) { out.push("</ul>"); inList = false; } };
+  for (const line of lines) {
+    const fence = line.match(/^```(\w*)\s*$/);
+    if (fence) {
+      if (inCode) { out.push(`<pre class="code">${codeLang ? `<span class="lang">${esc(codeLang)}</span>` : ""}<code>${esc(code.join("\n"))}</code></pre>`); inCode = false; code = []; }
+      else { closeList(); inCode = true; codeLang = fence[1] || ""; }
+      continue;
+    }
+    if (inCode) { code.push(line); continue; }
+    const h = line.match(/^(#{1,6})\s+(.*)$/);
+    if (h) { closeList(); const n = h[1].length; out.push(`<h${n}>${inline(h[2])}</h${n}>`); continue; }
+    const li = line.match(/^\s*[-*]\s+(.*)$/);
+    if (li) { if (!inList) { out.push("<ul>"); inList = true; } out.push(`<li>${inline(li[1])}</li>`); continue; }
+    if (!line.trim()) { closeList(); continue; }
+    closeList(); out.push(`<p>${inline(line)}</p>`);
+  }
+  if (inCode) out.push(`<pre class="code"><code>${esc(code.join("\n"))}</code></pre>`);
+  closeList();
+  return out.join("");
+}
 const sevPill = (s) => `<span class="pill sev-${s}"><span class="dot"></span>${s.toUpperCase()}</span>`;
 const stPill = (s) => `<span class="pill st-${s}"><span class="dot"></span>${s}</span>`;
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "—";
@@ -224,30 +258,29 @@ async function boot() {
 function renderLogin() {
   document.getElementById("app").innerHTML = `
     <div class="login-wrap"><div class="login">
-      <div class="brand"><span class="logo">S</span> Synapse</div>
+      <div class="brand"><span class="logo">O</span> OpsMemory</div>
       <div class="card">
         <div class="muted" style="margin-bottom:16px">Sign in to your organizational memory.</div>
         <form id="loginForm">
-          <div class="field"><label>Email</label><input name="email" type="email" value="admin@opsmemory.local" required></div>
-          <div class="field"><label>Password</label><input name="password" type="password" value="opsmemory" required></div>
+          <div class="field"><label>Email</label><input name="email" type="email" placeholder="Email address" required></div>
+          <div class="field"><label>Password</label><input name="password" type="password" placeholder="Password" required></div>
           <button class="btn primary" style="width:100%;margin-top:18px;justify-content:center" type="submit">Sign in</button>
         </form>
       </div>
-      <div class="faint" style="text-align:center;margin-top:14px;font-size:12px">Default: admin@opsmemory.local / opsmemory</div>
     </div></div>`;
   document.getElementById("loginForm").onsubmit = async (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
     try {
       const r = await api("/api/v1/auth/login", { method: "POST", body: { email: f.get("email"), password: f.get("password") } });
-      state.token = r.token; state.user = r.user; localStorage.setItem("synapse_token", r.token);
+      state.token = r.token; state.user = r.user; localStorage.setItem("opsmemory_token", r.token);
       renderApp();
     } catch (err) { toast("Login failed: " + err.message, true); }
   };
 }
 function logout() {
   api("/api/v1/auth/logout", { method: "POST" }).catch(() => {});
-  state.token = ""; state.user = null; localStorage.removeItem("synapse_token");
+  state.token = ""; state.user = null; localStorage.removeItem("opsmemory_token");
   location.hash = ""; renderLogin();
 }
 
@@ -256,7 +289,7 @@ function renderApp() {
   const initials = (state.user?.name || state.user?.email || "U").slice(0, 1).toUpperCase();
   document.getElementById("app").innerHTML = `
     <aside class="sidebar">
-      <div class="brand"><span class="logo">S</span> Synapse</div>
+      <div class="brand"><span class="logo">O</span> OpsMemory</div>
       <nav class="nav" id="nav">
         <a data-route="" href="#/"><span class="ico">◈</span> Dashboard</a>
         <a data-route="incidents" href="#/incidents"><span class="ico">❑</span> Incidents</a>
@@ -319,7 +352,15 @@ async function viewDashboard() {
       <div class="section-title">${title}</div>
       ${items.length ? `<div class="grid" style="gap:8px">${items.map(render).join("")}</div>` : `<div class="faint" style="font-size:13px">Nothing yet.</div>`}`;
     v.innerHTML = `
-      <div class="row between"><div><h1 class="page">Organizational Memory</h1><div class="sub">A living view of what your engineering org knows.</div></div></div>
+      <div class="row between"><div><h1 class="page">Organizational Memory</h1><div class="sub">A living view of what your engineering org knows.</div></div>
+        <div style="text-align: right">
+          <div class="row" style="gap: 8px">
+            <a class="btn sm" href="/api/v1/visualize/graph" target="_blank" style="border-color: var(--accent); color: var(--accent-text)">Visualize Cognee Graph</a>
+            <a class="btn sm" href="/api/v1/visualize/provenance" target="_blank" style="border-color: var(--purple); color: var(--purple)">Visualize Cognee Memory</a>
+          </div>
+          <div class="faint" style="font-size: 10px; margin-top: 6px;">Exposed temporarily for judges to verify the cognee usage</div>
+        </div>
+      </div>
       <div class="grid stats" style="margin-top:20px">
         ${stat(d.total_incidents, "Incidents", "❑")}
         ${stat(d.active_incidents, "Active", "◉")}
@@ -414,10 +455,10 @@ async function viewIncident(id) {
 
 // Data Collection tab — connectors rendered from a dynamic list.
 const CONNECTORS = [
-  { key: "document", icon: "▧", name: "Upload Document", desc: "PDF, Markdown, TXT, runbooks, postmortems, RCAs.", enabled: true },
+  { key: "document", icon: "▧", name: "Upload Document", desc: "Upload Markdown, TXT, or PDF files — or paste text.", enabled: true },
   { key: "manual", icon: "✎", name: "Manual Knowledge", desc: "Add a lesson, root cause, resolution, or decision.", enabled: true },
   { key: "invite", icon: "▤", name: "Invite Meeting Bot", desc: "Recall.ai joins a meeting; the transcript enriches this incident.", enabled: true },
-  { key: "attach", icon: "🔗", name: "Attach Meeting", desc: "Attach an existing recorded meeting to this incident.", enabled: true },
+  { key: "media", icon: "▷", name: "Upload Video / Media", desc: "Attach meeting recordings & media files.", enabled: false },
   { key: "github", icon: "⎇", name: "GitHub", desc: "Repos, ADRs, issues.", enabled: false },
   { key: "slack", icon: "◒", name: "Slack", desc: "Incident channels & threads.", enabled: false },
 ];
@@ -484,7 +525,9 @@ function renderDocumentation(id, inc) {
     ${sections.length ? sections.map(sec => `
       <div class="doc-sec${sec.key === "detailed_summary" ? " detail" : ""}">
         <h3>${esc(sec.title)} <span class="faint" style="font-weight:500">${sec.items.length} item(s)</span></h3>
-        <ul>${sec.items.map(it => `<li>${esc(it)}</li>`).join("")}</ul>
+        ${sec.key === "detailed_summary"
+          ? sec.items.map(it => `<div class="md-block"><div class="md">${mdToHtml(it)}</div></div>`).join("")
+          : `<ul>${sec.items.map(it => `<li>${esc(it)}</li>`).join("")}</ul>`}
         ${sec.sources?.length ? `<div class="sources">${sec.sources.map(sc => `<span class="src ${sc.type}" ${sc.url?`onclick="window.open('${sc.url}','_blank')" style="cursor:pointer"`:""} title="${esc(sc.type)}">◆ ${esc(sc.label)}</span>`).join("")}</div>` : ""}
       </div>`).join("") : `<div class="empty">No documentation yet. Add evidence on the Data Collection tab and it will generate automatically.</div>`}
     </div>
@@ -575,13 +618,24 @@ function openCreateIncident() {
 async function openSource(id, key) {
   if (key === "document") {
     modal(`<h2>Upload document</h2><div class="muted">Parsed, chunked, embedded, and cited automatically.</div>
-      <form id="sform">
+      <div class="row" style="gap:6px;margin:14px 0 4px">
+        <button type="button" class="btn sm mode active" data-mode="file" onclick="docMode('file')">Upload file</button>
+        <button type="button" class="btn sm mode ghost" data-mode="text" onclick="docMode('text')">Paste text</button>
+      </div>
+      <form id="docFileForm">
+        <div class="field"><label>File <span class="faint">(Markdown, TXT, or PDF)</span></label>
+          <input type="file" name="file" accept=".md,.markdown,.txt,.pdf,text/markdown,text/plain,application/pdf" required></div>
+        <div class="field"><label>Title <span class="faint">(optional — defaults to file name)</span></label><input name="title" placeholder="Redis Recovery Runbook"></div>
+        <div class="actions"><button type="button" class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn primary" type="submit">Upload & ingest</button></div>
+      </form>
+      <form id="docTextForm" style="display:none">
         <div class="field"><label>Title</label><input name="title" required placeholder="Redis Recovery Runbook"></div>
-        <div class="field"><label>Content</label><textarea name="content" required style="min-height:180px" placeholder="Paste markdown / text…"></textarea></div>
+        <div class="field"><label>Content</label><textarea name="content" required style="min-height:170px" placeholder="Paste markdown / text…"></textarea></div>
         <div class="field"><label>Format</label><select name="content_type">${["markdown","text","yaml","json","html"].map(s=>`<option>${s}</option>`).join("")}</select></div>
         <div class="actions"><button type="button" class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn primary" type="submit">Ingest</button></div>
       </form>`);
-    hookSource(id, "sform", `/api/v1/incidents/${id}/documents`, (f) => Object.fromEntries(f));
+    hookUpload(id, "docFileForm", `/api/v1/incidents/${id}/documents/upload`);
+    hookSource(id, "docTextForm", `/api/v1/incidents/${id}/documents`, (f) => Object.fromEntries(f));
   } else if (key === "manual") {
     modal(`<h2>Manual knowledge</h2><div class="muted">Directly teach this incident.</div>
       <form id="sform">
@@ -604,16 +658,17 @@ async function openSource(id, key) {
         closeModal(); toast("Bot invited — it will join the meeting"); viewIncident(id); }
       catch (err) { toast(err.message, true); btn.disabled = false; btn.textContent = "Retry"; }
     };
-  } else if (key === "attach") {
-    let meetings = [];
-    try { meetings = await api("/api/v1/meetings"); } catch (e) {}
-    const unattached = meetings.filter(m => !m.incident_id);
-    modal(`<h2>Attach meeting</h2><div class="muted">Recall.ai meetings the bot has recorded.</div>
-      ${unattached.length ? `<form id="sform"><div class="field"><label>Meeting</label><select name="meeting_id">${unattached.map(m=>`<option value="${m.id}">${esc(m.title || m.id)} · ${m.status}</option>`).join("")}</select></div>
-        <div class="actions"><button type="button" class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn primary" type="submit">Attach</button></div></form>`
-        : `<div class="empty" style="padding:30px">No unattached meetings.<br><span class="faint">Invite the bot from the card beside this one.</span></div><div class="actions"><button class="btn ghost" onclick="closeModal()">Close</button></div>`}`);
-    if (unattached.length) hookSource(id, "sform", `/api/v1/incidents/${id}/meetings`, (f) => Object.fromEntries(f));
   }
+}
+function docMode(mode) {
+  document.getElementById("docFileForm").style.display = mode === "file" ? "" : "none";
+  document.getElementById("docTextForm").style.display = mode === "text" ? "" : "none";
+  document.querySelectorAll(".mode").forEach(b => b.classList.toggle("active", b.dataset.mode === mode));
+  document.querySelectorAll(".mode").forEach(b => b.classList.toggle("ghost", b.dataset.mode !== mode));
+}
+function ingestToast(r) {
+  const n = r.memories_added; toast(n ? `Learned — ${n} memories added` : "Ingested");
+  if (r.suggestions?.length) toast(`AI found ${r.suggestions.length} related incident(s)`);
 }
 function hookSource(id, formId, path, build) {
   document.getElementById(formId).onsubmit = async (e) => {
@@ -621,10 +676,20 @@ function hookSource(id, formId, path, build) {
     const btn = e.target.querySelector('button[type="submit"]'); btn.innerHTML = '<span class="spin"></span>'; btn.disabled = true;
     try {
       const r = await api(path, { method: "POST", body: build(new FormData(e.target)) });
-      closeModal();
-      const n = r.memories_added; toast(n ? `Learned — ${n} memories added` : "Ingested");
-      if (r.suggestions?.length) toast(`AI found ${r.suggestions.length} related incident(s)`);
-      viewIncident(id);
+      closeModal(); ingestToast(r); viewIncident(id);
+    } catch (err) { toast(err.message, true); btn.disabled = false; btn.textContent = "Retry"; }
+  };
+}
+function hookUpload(id, formId, path) {
+  document.getElementById(formId).onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]'); btn.innerHTML = '<span class="spin"></span>'; btn.disabled = true;
+    try {
+      const headers = state.token ? { Authorization: "Bearer " + state.token } : {};
+      const res = await fetch(API + path, { method: "POST", headers, body: new FormData(e.target) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
+      closeModal(); ingestToast(data); viewIncident(id);
     } catch (err) { toast(err.message, true); btn.disabled = false; btn.textContent = "Retry"; }
   };
 }
@@ -650,7 +715,7 @@ async function viewMeetingIntelligence() {
     <div class="grid cards" style="margin-top:20px;grid-template-columns:minmax(0,420px) 1fr">
       <div class="card">
         <div style="font-weight:650;margin-bottom:4px">Invite meeting bot</div>
-        <div class="faint" style="font-size:12.5px;margin-bottom:12px">The bot joins, records, and after the meeting Synapse extracts engineering knowledge.</div>
+        <div class="faint" style="font-size:12.5px;margin-bottom:12px">The bot joins, records, and after the meeting OpsMemory extracts engineering knowledge.</div>
         <form id="inviteForm">
           <div class="field"><label>Meeting URL</label><input name="meeting_url" required placeholder="https://meet.google.com/… or Zoom/Teams"></div>
           <div class="field"><label>Meeting title <span class="faint">(optional)</span></label><input name="title" placeholder="Incident Review"></div>

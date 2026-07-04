@@ -1,6 +1,6 @@
-# Querying and Visualizing Cognee in Synapse
+# Querying and Visualizing Cognee in OpsMemory
 
-Synapse (formerly OpsMemory) uses **Cognee** as its central memory engine. Every piece of knowledge ingested is automatically cognified into a structured knowledge graph, backed by a robust PostgreSQL and pgvector substrate.
+OpsMemory (formerly OpsMemory) uses **Cognee** as its central memory engine. Every piece of knowledge ingested is automatically cognified into a structured knowledge graph, backed by a robust PostgreSQL and pgvector substrate.
 
 This guide explains how to directly query Cognee, fetch data from the relational database, and generate visual projections for specific incidents.
 
@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
 ## 2. Querying the Database (Source of Truth)
 
-Because Synapse uses PostgreSQL as the source of truth, all parsed incidents and extracted `OperationalExperience` nodes live in standard relational tables before they are projected into the graph.
+Because OpsMemory uses PostgreSQL as the source of truth, all parsed incidents and extracted `OperationalExperience` nodes live in standard relational tables before they are projected into the graph.
 
 You can query the database directly using SQLAlchemy:
 
@@ -93,7 +93,7 @@ from opsmemory.core.config import get_settings
 async def generate_visualizations():
     settings = get_settings()
     
-    # 1. Point Cognee to the correct storage path used by Synapse
+    # 1. Point Cognee to the correct storage path used by OpsMemory
     storage = Path(settings.graph_db_path).parent / "cognee"
     cognee.config.system_root_directory(str(storage / "system"))
     cognee.config.data_root_directory(str(storage / "data"))
@@ -122,4 +122,4 @@ docker cp $(docker-compose ps -q api):/app/cognee_graph.html ./
 docker cp $(docker-compose ps -q api):/app/memory_provenance.html ./
 ```
 
-> **Note:** The `visualize_graph` tool automatically renders the connections for all ingested entities. When you query or view an incident in the UI, Synapse retrieves the specific `OperationalExperience` nodes linked to that incident ID in the database and the graph.
+> **Note:** The `visualize_graph` tool automatically renders the connections for all ingested entities. When you query or view an incident in the UI, OpsMemory retrieves the specific `OperationalExperience` nodes linked to that incident ID in the database and the graph.

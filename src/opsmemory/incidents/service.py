@@ -179,13 +179,11 @@ class IncidentService:
         async with self._session_factory() as session:
 
             async def count(model: Any, column: Any) -> int:
-                return int(
-                    (
-                        await session.execute(
-                            select(func.count()).select_from(model).where(column == incident_id)
-                        )
-                    ).scalar_one()
-                )
+                return (
+                    await session.execute(
+                        select(func.count()).select_from(model).where(column == incident_id)
+                    )
+                ).scalar_one()
 
             return {
                 "documents": await count(Document, Document.incident_id),

@@ -64,7 +64,7 @@ def wire_services(app: FastAPI, settings: Settings) -> None:
     app.state.ingestion_service = ingestion
     app.state.job_service = JobService(session_factory, ingestion)
 
-    # Synapse incident hub, scoped chat, notifications, and authentication.
+    # OpsMemory incident hub, scoped chat, notifications, and authentication.
     incident_service = IncidentService(session_factory, memory_engine, graph_store, teaching)
     notifications = NotificationService(session_factory)
     app.state.incident_service = incident_service

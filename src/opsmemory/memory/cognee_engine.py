@@ -69,7 +69,8 @@ class CogneeMemoryEngine:
 
         try:
             storage = Path(settings.graph_db_path).parent / "cognee"
-            storage.mkdir(parents=True, exist_ok=True)
+            (storage / "system").mkdir(parents=True, exist_ok=True)
+            (storage / "data").mkdir(parents=True, exist_ok=True)
             cognee.config.system_root_directory(str(storage / "system"))
             cognee.config.data_root_directory(str(storage / "data"))
 

@@ -3,7 +3,7 @@
 An Incident is not a ticket — it is the primary organizational-memory
 object. Documents, meetings, memories, and operational experiences all link
 back to an incident, and its living documentation is regenerated from that
-evidence whenever anything changes (Synapse model).
+evidence whenever anything changes (OpsMemory model).
 """
 
 import uuid

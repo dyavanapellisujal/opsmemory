@@ -4,7 +4,7 @@ Date: 2026-07-04 · Status: Accepted
 
 ## Context
 
-The Synapse experience reframes the product around incidents: each incident
+The OpsMemory experience reframes the product around incidents: each incident
 is a continuously-growing knowledge object that many sources (documents,
 meetings, manual entries) enrich over time, rather than a ticket. It also
 requires authentication and a generated-not-edited documentation view.

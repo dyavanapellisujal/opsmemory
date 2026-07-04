@@ -164,16 +164,20 @@ def generate_documentation(bundle: EvidenceBundle) -> LivingDocumentation:
     # --- Operational experiences ---
     for experience in bundle.experiences:
         src = _experience_source(experience)
-        add("detailed_summary", experience.problem, src)
         add("root_cause", experience.root_cause, src)
         add("resolution", experience.resolution, src)
         add("lessons_learned", experience.lessons_learned, src)
         for tech in experience.related_technologies or []:
             add("infrastructure", str(tech), src)
 
-    # --- Documents (references + evidence only) ---
+    # --- Documents: full content in the detailed block + references + evidence ---
     for document in bundle.documents:
         src = _doc_source(document)
+        # The complete uploaded content (rendered as markdown by the UI — code
+        # blocks, SQL, commands and all), so the page shows the full detail.
+        content = (document.content or "").strip()
+        if content:
+            add("detailed_summary", content, src)
         sections["references"].items.append(document.title)
         sections["references"].sources.append(src)
         sections["evidence"].items.append(f"Document: {document.title}")

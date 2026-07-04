@@ -1,21 +1,21 @@
-# Synapse
+# OpsMemory
 
 > **The Operational Memory Layer for Engineering Teams**
 
-Synapse continuously ingests engineering knowledge (docs, runbooks, ADRs,
+OpsMemory continuously ingests engineering knowledge (docs, runbooks, ADRs,
 postmortems, documentation sites), extracts operational experiences, builds a
 knowledge graph, and answers questions with evidence-backed AI reasoning.
 Engineers can *teach* it lessons from real incidents — every lesson improves
 future answers.
 
-Unlike a document search engine or a plain RAG chatbot, Synapse stores
+Unlike a document search engine or a plain RAG chatbot, OpsMemory stores
 *understanding*: services, teams, incidents, architecture decisions, and —
 most importantly — operational experiences that grow with every lesson your
 organization learns.
 
 ## Features
 
-- **Synapse incident hub + web app** — each incident is a continuously-growing
+- **OpsMemory incident hub + web app** — each incident is a continuously-growing
   knowledge object. A dark, Linear/Notion-style SPA (served at `/`) provides
   login, a memory dashboard, incident cards, and an incident workspace with
   three tabs: **Data Collection** (upload docs, manual knowledge, attach
@@ -57,7 +57,7 @@ cp .env.example .env        # add OPSMEMORY_GEMINI_API_KEY / OPSMEMORY_GROQ_API_
 
 # 2. Start PostgreSQL (pgvector), migrate, run the API
 make db-up && make migrate
-make api                    # http://localhost:8000 (Synapse web app) · /docs (OpenAPI)
+make api                    # http://localhost:8000 (OpsMemory web app) · /docs (OpenAPI)
                             # sign in with admin@opsmemory.local / opsmemory
 
 # 3. Ingest knowledge and ask questions
@@ -76,7 +76,7 @@ Docker Compose alternative: `docker compose up` (Postgres + migrations + API).
 ### Local Kubernetes (Kind) — one command
 
 ```bash
-make lab        # Kind cluster + Postgres(pgvector) + Synapse (Helm, migrations
+make lab        # Kind cluster + Postgres(pgvector) + OpsMemory (Helm, migrations
                 # as a hook) + sample knowledge, served at http://localhost:8000
 make lab-down   # tear it all down
 ```
@@ -111,11 +111,11 @@ See [ADR-0002](docs/adr/0002-cognee-behind-memory-engine-port.md).
 
 ## Meeting Connector (Recall.ai)
 
-Synapse includes a fully functional meeting connector powered by [Recall.ai](https://recall.ai). You can invite the Synapse bot to your engineering meetings (Google Meet, Zoom, Microsoft Teams) to automatically capture and learn from postmortems, incident responses, and architectural discussions.
+OpsMemory includes a fully functional meeting connector powered by [Recall.ai](https://recall.ai). You can invite the OpsMemory bot to your engineering meetings (Google Meet, Zoom, Microsoft Teams) to automatically capture and learn from postmortems, incident responses, and architectural discussions.
 
 1. **Invite the bot**: Send a `POST` to `/api/v1/meetings` with your meeting URL.
 2. **Record**: The headless bot joins your meeting and captures the audio/video.
-3. **Webhook**: When the meeting ends, Recall.ai sends a Svix-signed webhook to your Synapse server (`/api/v1/webhooks/recall`).
+3. **Webhook**: When the meeting ends, Recall.ai sends a Svix-signed webhook to your OpsMemory server (`/api/v1/webhooks/recall`).
 4. **AI Extraction**: The raw transcript is downloaded and sent to the configured LLM using a specialized SRE persona prompt.
 5. **Knowledge Pipeline**: The AI extracts structured incident reports (severity, affected services, root cause, resolution, lessons learned). This data is automatically injected into the **Teaching Pipeline**, embedded into the **Semantic Memory**, and projected as new edges into the **Knowledge Graph**.
 

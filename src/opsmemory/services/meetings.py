@@ -1,7 +1,7 @@
 """Meeting Intelligence: meetings are evidence that enrich incident memory.
 
 A meeting is never a standalone object — it exists to enrich an Incident
-(Synapse model). Two flows:
+(OpsMemory model). Two flows:
 
 * **Existing incident** — the meeting is invited with ``incident_id`` set and
   becomes another knowledge source for that incident.

@@ -24,6 +24,8 @@ dependencies = [
     "kuzu>=0.11",
     "anthropic>=0.40",
     "mcp>=1.2",
+    "pypdf>=5",
+    "python-multipart>=0.0.9",
     # Cognee is the central organizational-memory engine (ADR-0002): every
     # write is cognified into its knowledge graph. Core, not optional.
     "cognee>=1.2",

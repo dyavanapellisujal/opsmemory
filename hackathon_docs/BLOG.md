@@ -1,4 +1,4 @@
-# Curing AI Amnesia: Building Synapse with Cognee
+# Curing AI Amnesia: Building OpsMemory with Cognee
 
 If you've ever tried asking an AI chatbot about an internal engineering incident, you know the struggle. 
 *"How did we fix the Redis OOM crash last month?"* 
@@ -8,14 +8,14 @@ I’ve seen this problem repeatedly across the industry, and felt the pain mysel
 
 I wanted to build a system that understands relationships—an **operational memory layer** for engineering teams. 
 
-That was the goal for this hackathon: to build **Synapse**. But I needed a way to give Synapse true long-term memory. That’s when I discovered **Cognee**.
+That was the goal for this hackathon: to build **OpsMemory**. But I needed a way to give OpsMemory true long-term memory. That’s when I discovered **Cognee**.
 
 ## The Journey: Discovering Cognee
 
 I went into this hackathon looking for a way to structure unstructured text into a knowledge graph. When I found Cognee, it immediately clicked. It was the exact missing piece needed to solve the "isolated vector" problem.
 
-Here is how the pipeline for Synapse came together:
-1. **Ingestion**: Synapse ingests markdown files, HTTP documentation, and live meeting transcripts. We even built a **Meeting Connector** using Recall.ai that joins incident response meetings and transcribes the chaos into text.
+Here is how the pipeline for OpsMemory came together:
+1. **Ingestion**: OpsMemory ingests markdown files, HTTP documentation, and live meeting transcripts. We even built a **Meeting Connector** using Recall.ai that joins incident response meetings and transcribes the chaos into text.
 2. **Extraction**: We use an LLM (Gemini/Groq) to extract structured incident reports from the transcripts: severity, affected services, root causes, and lessons learned.
 3. **Cognification**: This is where Cognee shines. We feed this structured data directly into Cognee. 
 4. **Graph Building**: Cognee breaks down the information and constructs a semantic knowledge graph, automatically building edges between incidents, services, and operational experiences.
@@ -24,13 +24,13 @@ Here is how the pipeline for Synapse came together:
 
 By layering Cognee over our durable PostgreSQL + pgvector substrate, every piece of knowledge we ingest is *cognified*. Cognee builds a traceable, interconnected knowledge graph. 
 
-Now, when a user asks Synapse, *"Are there any known memory leaks in the image processing library?"*, Synapse doesn't just do a brute-force similarity search. It traverses the Cognee knowledge graph. It finds the specific `OperationalExperience` node tied to a past `Incident` node, looks at the `resolution`, and gives a precise, evidence-backed answer. 
+Now, when a user asks OpsMemory, *"Are there any known memory leaks in the image processing library?"*, OpsMemory doesn't just do a brute-force similarity search. It traverses the Cognee knowledge graph. It finds the specific `OperationalExperience` node tied to a past `Incident` node, looks at the `resolution`, and gives a precise, evidence-backed answer. 
 
 And if you want to visualize what the AI actually "knows"? Cognee's built-in `visualize_graph` tool lets us render beautiful HTML projections of our entire engineering memory. You can literally *see* the connections between your microservices and past outages.
 
 ## The Result
 
-Building Synapse with Cognee for this hackathon completely changed my perspective on how we can interact with engineering data. Instead of saying *"I think someone wrote a doc about this"*, we now have an AI that can definitively state: *"Yes, we experienced this on July 4th. The root cause was missing memory limits. Here is the exact postmortem and meeting transcript."*
+Building OpsMemory with Cognee for this hackathon completely changed my perspective on how we can interact with engineering data. Instead of saying *"I think someone wrote a doc about this"*, we now have an AI that can definitively state: *"Yes, we experienced this on July 4th. The root cause was missing memory limits. Here is the exact postmortem and meeting transcript."*
 
 Discovering Cognee gave this project exactly what it needed: a reliable, structured, and interconnected memory. 
 

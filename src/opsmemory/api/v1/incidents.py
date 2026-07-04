@@ -4,9 +4,9 @@ All routes require authentication (when enabled) via ``CurrentUserDep``.
 """
 
 import uuid
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, File, Form, Query, UploadFile, status
 
 from opsmemory.api.dependencies import (
     CurrentUserDep,
@@ -34,6 +34,7 @@ from opsmemory.api.schemas.incidents import (
 from opsmemory.api.schemas.meetings import MeetingInvite, MeetingOut
 from opsmemory.db.models import Incident, Meeting
 from opsmemory.incidents.service import IncidentSuggestion
+from opsmemory.processing.files import extract_upload
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
 
@@ -167,13 +168,39 @@ async def upload_document(
     service: IncidentServiceDep,
     user: CurrentUserDep,
 ) -> IngestionOutcomeOut:
-    """Upload a document into the incident and run the processing pipeline."""
+    """Add a document into the incident from pasted text (see /upload for files)."""
     author = user.email if user is not None else None
     outcome = await service.add_document(
         incident_id,
         title=payload.title,
         content=payload.content,
         content_type=payload.content_type,
+        author=author,
+    )
+    return IngestionOutcomeOut(**outcome.model_dump())
+
+
+@router.post(
+    "/{incident_id}/documents/upload",
+    response_model=IngestionOutcomeOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_document_file(
+    incident_id: uuid.UUID,
+    service: IncidentServiceDep,
+    user: CurrentUserDep,
+    file: Annotated[UploadFile, File(description="Markdown, TXT, or PDF file.")],
+    title: Annotated[str | None, Form()] = None,
+) -> IngestionOutcomeOut:
+    """Upload a real file (Markdown/TXT/PDF) into the incident; text is extracted."""
+    data = await file.read()
+    text, content_type = extract_upload(file.filename or "upload", data)
+    author = user.email if user is not None else None
+    outcome = await service.add_document(
+        incident_id,
+        title=title or (file.filename or "Uploaded document"),
+        content=text,
+        content_type=content_type,
         author=author,
     )
     return IngestionOutcomeOut(**outcome.model_dump())
