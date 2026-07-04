@@ -109,6 +109,19 @@ transparently uses the substrate and logs that graph-building is inactive.
 `native` exposes the raw pgvector substrate and is used by the test suite.
 See [ADR-0002](docs/adr/0002-cognee-behind-memory-engine-port.md).
 
+## How We Used Cognee (Hackathon Submission)
+
+We deeply integrated **Cognee** as the core intelligence layer for OpsMemory, elevating it from a standard RAG application into a true cognitive architecture for engineering teams.
+
+1. **Continuous Knowledge Ingestion (Cognification)**:
+   Whenever new engineering evidence is added—whether it's an incident document, a meeting transcript captured by our Recall.ai bot, or manual operational knowledge—OpsMemory automatically processes it in the background. We use Cognee to ingest this raw data, generate semantic embeddings, build graph relationships, and continuously update the organizational memory.
+
+2. **Graph-Powered Engineering Memory**:
+   Traditional RAG systems simply retrieve the most similar text chunk. By leveraging Cognee's graph capabilities, OpsMemory performs graph-aware retrieval. It maps the complex relationships between incidents, microservices, teams, and root causes. When an engineer asks, *"Have we experienced Redis authentication failures before?"*, Cognee traverses the graph to synthesize a comprehensive, evidence-backed answer rather than just returning isolated documents.
+
+3. **Hybrid Retrieval (Vector + Graph)**:
+   We combined pgvector (for semantic similarity) with Cognee's graph traversal. This ensures that the AI agent has the full context of how an incident impacts the broader architecture, allowing for highly accurate root-cause analysis and resolution recommendations based on historical data.
+
 ## Meeting Connector (Recall.ai)
 
 OpsMemory includes a fully functional meeting connector powered by [Recall.ai](https://recall.ai). You can invite the OpsMemory bot to your engineering meetings (Google Meet, Zoom, Microsoft Teams) to automatically capture and learn from postmortems, incident responses, and architectural discussions.
