@@ -23,7 +23,7 @@ htmlcov/
 .env.*
 !.env.example
 values.local.yaml
-
+BLOG.md 
 # IDE
 .idea/
 .vscode/

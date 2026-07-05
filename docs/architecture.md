@@ -10,37 +10,57 @@ This document describes the implemented architecture; the
 
 ## System overview
 
-```text
-                        External Knowledge Sources
-        GitHub          Local Files          Documentation Sites
-                                │
-                                ▼
-                       Connector Framework         
-                                │
-                                ▼
-                  Knowledge Processing Pipeline    
-        parse → normalize → metadata → chunk → relationships → experiences
-                                │
-                                ▼
-                        Memory Construction
-                                │
-        ┌───────────────────────┼────────────────────────┐
-        ▼                       ▼                        ▼
-   PostgreSQL              pgvector                 Kuzu Graph
-   (Metadata,           (Semantic Memory)         (Relationships)
-    source of truth)
-        └───────────────────────┼────────────────────────┘
-                                │        Cognee MemoryEngine (optional)
-                                ▼
-                     Hybrid Retrieval Engine       
-        semantic + graph + metadata + keyword → ranking → context assembly
-                                │
-                                ▼
-                         AI Agent Layer            
-              reasoning only — never orchestration
-                                │
-                                ▼
-                FastAPI  +  CLI  +  Web UI  +  MCP
+```mermaid
+graph TD
+    %% External Sources
+    subgraph "External Knowledge Sources"
+        GH[GitHub]
+        LF[Local Files]
+        DS[Documentation Sites]
+        RC[Recall.ai Meetings]
+    end
+
+    %% Ingestion Pipeline
+    CF[Connector Framework]
+    KP[Knowledge Processing Pipeline<br>parse → normalize → metadata → chunk]
+    
+    GH & LF & DS & RC --> CF
+    CF --> KP
+
+    %% Storage Layer
+    subgraph "Storage & Memory Layer"
+        PG[(PostgreSQL<br>Source of Truth)]
+        PV[(pgvector<br>Semantic Memory)]
+        KZ[(Kuzu Graph<br>Relationships)]
+        
+        CG{{Cognee Memory Engine<br>Cognifies every write}}
+    end
+
+    KP --> PG
+    KP --> PV
+    KP --> KZ
+    
+    PG & PV & KZ <--> CG
+
+    %% Retrieval & AI
+    HR[Hybrid Retrieval Engine<br>semantic + graph + metadata + keyword]
+    AI[AI Agent Layer<br>Gemini Embeddings + Groq Reasoning]
+    
+    CG --> HR
+    HR --> AI
+
+    %% Interfaces
+    subgraph "Interfaces"
+        API[FastAPI REST]
+        CLI[Typer CLI]
+        UI[Web UI SPA]
+        MCP[MCP Server]
+    end
+
+    AI --> API
+    AI --> CLI
+    AI --> UI
+    AI --> MCP
 ```
 
 ## AI providers

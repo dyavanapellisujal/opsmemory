@@ -18,9 +18,12 @@ organization learns.
 - **OpsMemory incident hub + web app** — each incident is a continuously-growing
   knowledge object. A dark, Linear/Notion-style SPA (served at `/`) provides
   login, a memory dashboard, incident cards, and an incident workspace with
-  three tabs: **Data Collection** (upload docs, manual knowledge, attach
-  meetings), **Documentation** (living, cited, auto-generated), and
-  **AI Chat** (scoped to that incident) — plus a global assistant. See
+  three tabs: **Data Collection** (upload documents as real files — Markdown,
+  `.txt`, PDF — or pasted text; add manual knowledge; connector tiles for
+  GitHub/Slack/media upload marked *soon*), **Documentation** (living, cited,
+  auto-generated — including a full **Detailed Summary** block), and
+  **AI Chat** (scoped to that incident) — plus a global assistant and a
+  **Visualize the Cognee Memory** view of the live knowledge graph. See
   [ADR-0008](docs/adr/0008-incident-hub-and-auth.md).
 - **Meeting Intelligence** — invite a Recall.ai bot to an engineering meeting
   (Google Meet/Zoom/Teams); when it ends, the transcript is downloaded and AI
@@ -72,6 +75,24 @@ uv run opsmemory graph payments-api --dependencies
 ```
 
 Docker Compose alternative: `docker compose up` (Postgres + migrations + API).
+
+### Using the web app
+
+Open `http://localhost:8000`, sign in (`admin@opsmemory.local` / `opsmemory`),
+then work an incident end to end:
+
+1. **New incident** — give it a title and severity. It becomes a knowledge hub.
+2. **Data Collection** tab — **Upload Document** (drop a real `.md` / `.txt` /
+   PDF file, or paste text), or **Add knowledge** to teach a lesson directly.
+3. **Documentation** tab — auto-generated, cited living docs regenerate from the
+   evidence (Overview, Root Cause, Resolution, and a full **Detailed Summary**).
+   Hit **Regenerate** after adding more.
+4. **AI Chat** tab — ask questions scoped to this incident; answers carry
+   citations + confidence. The global **Assistant** also surfaces related
+   incidents found through the graph.
+5. **Meeting Intelligence** — invite the Recall.ai bot to a live meeting; when
+   it ends, the transcript enriches an incident (existing or auto-created).
+6. **Visualize the Cognee Memory** — render the live knowledge graph.
 
 ### Local Kubernetes (Kind) — one command
 
@@ -153,12 +174,61 @@ Tools exposed: `ask`, `search`, `teach`, `list_services`, `graph_neighbors`,
 
 ## Architecture
 
+Everything an engineer feeds in — files, docs, meeting transcripts, manual
+lessons — converges on one `MemoryEngine` port. Cognee cognifies every write
+into a knowledge graph, while PostgreSQL + pgvector remains the durable,
+traceable substrate that backs API citations. Retrieval is hybrid and
+intent-routed; the LLM only reasons over curated, cited evidence.
+
+```mermaid
+flowchart TB
+  subgraph Sources["Connectors — produce text"]
+    F[Files: MD / TXT / PDF]
+    H[HTTP docs]
+    R[Recall.ai meetings]
+    T[Manual teaching / chat]
+    S[GitHub · Slack — planned]
+  end
+  subgraph Ingest["Processing"]
+    P[parse → chunk → extract relationships]
+  end
+  subgraph Memory["Memory layer — MemoryEngine port"]
+    PG[(PostgreSQL + pgvector<br/>source of truth · citations)]
+    CG[(Cognee<br/>central knowledge graph)]
+    KZ[(Kuzu<br/>embedded graph)]
+  end
+  subgraph Retrieval["Hybrid retrieval — intent-routed"]
+    RS[semantic + graph + keyword + metadata]
+  end
+  subgraph AI["AI agent"]
+    LLM[Gemini embeddings · Groq reasoning<br/>citations + confidence]
+  end
+  subgraph Surfaces["Surfaces"]
+    WEB[Web app]
+    CLI[CLI]
+    MCP[MCP server]
+    APIx[REST API]
+  end
+  F & H & R & T & S --> P --> PG
+  PG --> CG
+  PG --> KZ
+  PG & CG & KZ --> RS --> LLM
+  LLM --> WEB & CLI & MCP & APIx
+  style CG fill:#1f6f4f,color:#fff
+  style PG fill:#3b3b5b,color:#fff
+  style S stroke-dasharray: 5 5
 ```
-Connectors (local, http, …) → Processing (parse→chunk→relate) →
-PostgreSQL (source of truth) + pgvector (semantic) + Kuzu (graph) [+ Cognee]
-→ Hybrid Retrieval (intent-routed) → AI Agent (Gemini/Groq, citations)
-→ REST API + CLI + Dashboard + MCP
-```
+
+**The memory lifecycle (Cognee).** Every write funnels through four
+operations, so adding a new connector is trivial — it only has to turn its
+signal into text and call `remember()`:
+
+| Verb | Role | In OpsMemory |
+|------|------|--------------|
+| `remember()` | ingest + structure into the graph (runs Extract→Cognify→Load) | every document, transcript, and lesson |
+| `recall()` | query; auto-routes semantic vs. graph traversal | incident-scoped and global chat |
+| `improve()` / memify | enrich + reweight on feedback | teaching pipeline reinforces confidence on repeat lessons |
+| `forget()` | prune / delete | deletion cascade when a meeting or incident is removed |
 
 See [docs/architecture.md](docs/architecture.md) and the ADRs in
 [docs/adr/](docs/adr/) for the decisions behind Kuzu, Cognee, provider
@@ -179,8 +249,10 @@ strategy, and storage boundaries.
 | M9 — Connectors & jobs | HTTP docs connector, Recall.ai Meeting Connector, async ingestion jobs | ✅ |
 | M10 — Platform | Web dashboard, MCP server, Kind bootstrap, sample knowledge, demo flow | ✅ |
 
-Deferred beyond MVP: GitHub connector, enterprise auth/RBAC, scheduled sync,
-graph visualization UI, simulated incident workloads in the Kind lab.
+Deferred beyond MVP: GitHub and Slack connectors, enterprise auth/RBAC,
+scheduled sync, media/video upload ingestion, simulated incident workloads in
+the Kind lab. (Live Cognee graph visualization is available via the
+**Visualize the Cognee Memory** view.)
 
 ## Development
 
